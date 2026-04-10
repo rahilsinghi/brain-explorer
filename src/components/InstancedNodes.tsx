@@ -35,9 +35,16 @@ export function InstancedNodes({ nodes, neighborMap }: InstancedNodesProps) {
     [nodes],
   );
 
-  // Precompute base colors as THREE.Color instances
+  // Precompute base colors as THREE.Color instances, boosted for bloom
+  // Multiply by 1.6 so all channels exceed bloom luminanceThreshold (0.6)
+  const EMISSIVE_BOOST = 1.6;
   const baseColors = useMemo(
-    () => nodes.map((n) => new THREE.Color(getCategoryColor(n.category))),
+    () =>
+      nodes.map((n) => {
+        const c = new THREE.Color(getCategoryColor(n.category));
+        c.multiplyScalar(EMISSIVE_BOOST);
+        return c;
+      }),
     [nodes],
   );
 
@@ -128,11 +135,7 @@ export function InstancedNodes({ nodes, neighborMap }: InstancedNodesProps) {
       onClick={handleClick}
     >
       <sphereGeometry args={[1, 16, 16]} />
-      <meshStandardMaterial
-        emissive="white"
-        emissiveIntensity={1.5}
-        toneMapped={false}
-      />
+      <meshBasicMaterial toneMapped={false} />
     </instancedMesh>
   );
 }
