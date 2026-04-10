@@ -2,10 +2,11 @@
 
 import { GraphCanvas } from "@/components/GraphCanvas";
 import { InstancedNodes } from "@/components/InstancedNodes";
+import { Edges } from "@/components/Edges";
 import { useGraphData } from "@/hooks/useGraphData";
 
 export default function Home() {
-  const { nodes, neighborMap, loading, error } = useGraphData();
+  const { nodes, links, neighborMap, loading, error } = useGraphData();
 
   if (loading) {
     return (
@@ -28,6 +29,7 @@ export default function Home() {
   return (
     <main className="h-screen w-screen relative">
       <GraphCanvas>
+        <Edges nodes={nodes} links={links} />
         <InstancedNodes nodes={nodes} neighborMap={neighborMap} />
       </GraphCanvas>
     </main>
