@@ -27,7 +27,8 @@ export function Tooltip({ nodes, neighborMap }: TooltipProps) {
   if (!node) return null;
 
   const color = getCategoryColor(node.category);
-  const connectionCount = neighborMap.get(node.id)?.size ?? node.connection_count;
+  const connectionCount =
+    neighborMap.get(node.id)?.size ?? node.connection_count;
 
   return (
     <Html
@@ -35,31 +36,86 @@ export function Tooltip({ nodes, neighborMap }: TooltipProps) {
       center
       style={{ pointerEvents: "none" }}
     >
-      <div className="glass rounded-lg px-3 py-2.5 max-w-[260px] shadow-xl animate-fade-in">
-        <p className="truncate text-sm font-semibold text-slate-200 leading-tight">
+      <div
+        className="animate-fade-in"
+        style={{
+          background: "#0e0e20",
+          border: "1px solid rgba(255,255,255,0.1)",
+          borderRadius: "10px",
+          padding: "10px 14px",
+          maxWidth: "280px",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.6)",
+        }}
+      >
+        {/* Title */}
+        <p
+          style={{
+            color: "#e8eaf0",
+            fontSize: "13px",
+            fontWeight: 600,
+            lineHeight: 1.3,
+            margin: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+          }}
+        >
           {node.title}
         </p>
 
-        <div className="mt-1.5 flex items-center gap-2">
+        {/* Category pill + connection count */}
+        <div
+          style={{
+            marginTop: "8px",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+          }}
+        >
           <span
-            className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium text-white/90"
-            style={{ backgroundColor: color }}
+            style={{
+              display: "inline-block",
+              background: `${color}28`,
+              color: color,
+              border: `1px solid ${color}55`,
+              borderRadius: "9999px",
+              padding: "2px 8px",
+              fontSize: "10px",
+              fontWeight: 600,
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+            }}
           >
             {node.category}
           </span>
           {connectionCount > 0 && (
-            <span className="text-[10px] text-slate-500">
-              {connectionCount} connection{connectionCount !== 1 ? "s" : ""}
+            <span style={{ fontSize: "10px", color: "#6b7280" }}>
+              {connectionCount} connection
+              {connectionCount !== 1 ? "s" : ""}
             </span>
           )}
         </div>
 
+        {/* Tags */}
         {node.tags.length > 0 && (
-          <div className="mt-1.5 flex flex-wrap gap-1">
+          <div
+            style={{
+              marginTop: "8px",
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "4px",
+            }}
+          >
             {node.tags.slice(0, 3).map((tag) => (
               <span
                 key={tag}
-                className="rounded-full border border-white/10 px-1.5 py-0.5 text-[10px] text-slate-400"
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  color: "#9ca3af",
+                  borderRadius: "4px",
+                  padding: "2px 6px",
+                  fontSize: "10px",
+                }}
               >
                 {tag}
               </span>

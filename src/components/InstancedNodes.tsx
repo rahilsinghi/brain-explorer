@@ -16,8 +16,30 @@ interface InstancedNodesProps {
 const tempObject = new THREE.Object3D();
 const tempColor = new THREE.Color();
 
-const GLOW_SCALE = 3.0;
-const GLOW_OPACITY = 0.15;
+const GLOW_SCALE = 2.5;
+const GLOW_OPACITY = 0.08;
+
+// Create a soft radial gradient texture for glow sprites
+function createGlowTexture(): THREE.Texture {
+  const size = 128;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d")!;
+  const gradient = ctx.createRadialGradient(
+    size / 2, size / 2, 0,
+    size / 2, size / 2, size / 2,
+  );
+  gradient.addColorStop(0, "rgba(255, 255, 255, 1)");
+  gradient.addColorStop(0.3, "rgba(255, 255, 255, 0.5)");
+  gradient.addColorStop(0.7, "rgba(255, 255, 255, 0.1)");
+  gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, size, size);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.needsUpdate = true;
+  return texture;
+}
 
 export function InstancedNodes({ nodes, neighborMap }: InstancedNodesProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
@@ -26,21 +48,17 @@ export function InstancedNodes({ nodes, neighborMap }: InstancedNodesProps) {
   const setHoveredNode = useGraphState((s) => s.setHoveredNode);
   const setFocusedNode = useGraphState((s) => s.setFocusedNode);
 
-  // Build node index map for raycasting
   const nodeIndexMap = useMemo(() => {
     const map = new Map<number, string>();
     nodes.forEach((n, i) => map.set(i, n.id));
     return map;
   }, [nodes]);
 
-  // Precompute base radii
   const radii = useMemo(
     () => nodes.map((n) => getNodeRadius(n.connection_count)),
     [nodes],
   );
 
-  // Precompute base colors as THREE.Color instances, boosted for bloom
-  // Multiply by 1.6 so all channels exceed bloom luminanceThreshold (0.6)
   const EMISSIVE_BOOST = 1.6;
   const baseColors = useMemo(
     () =>
@@ -52,25 +70,24 @@ export function InstancedNodes({ nodes, neighborMap }: InstancedNodesProps) {
     [nodes],
   );
 
-  // Precompute glow colors for additive blending layer
   const glowColors = useMemo(
     () => nodes.map((n) => new THREE.Color(getGlowColor(n.category))),
     [nodes],
   );
 
-  // Neighbor set for focused node
+  // Soft radial gradient texture for glow sprites
+  const glowTexture = useMemo(() => createGlowTexture(), []);
+
   const focusNeighbors = useMemo(() => {
     if (!focusedNodeId) return null;
     return neighborMap.get(focusedNodeId) ?? new Set<string>();
   }, [focusedNodeId, neighborMap]);
 
-  // Debounce pointer out by 50ms to prevent cursor flicker in dense clusters
   const pointerOutTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handlePointerMove = useCallback(
     (e: ThreeEvent<PointerEvent>) => {
       e.stopPropagation();
-      // Clear any pending pointer-out debounce
       if (pointerOutTimer.current) clearTimeout(pointerOutTimer.current);
       const instanceId = e.instanceId;
       if (instanceId !== undefined) {
@@ -111,7 +128,6 @@ export function InstancedNodes({ nodes, neighborMap }: InstancedNodesProps) {
       const node = nodes[i];
       const baseRadius = radii[i];
 
-      // Pulse: +/-5%, 3s period, offset per node
       const pulse =
         1 + 0.05 * Math.sin(time * ((2 * Math.PI) / 3) + i * 0.7);
       const scale = baseRadius * pulse;
@@ -121,17 +137,14 @@ export function InstancedNodes({ nodes, neighborMap }: InstancedNodesProps) {
       tempObject.updateMatrix();
       mesh.setMatrixAt(i, tempObject.matrix);
 
-      // Glow mesh: same position, scaled up by GLOW_SCALE
+      // Glow sprite: same position, larger scale, uses billboard plane
       if (glow) {
         const glowScale = scale * GLOW_SCALE;
-        tempObject.scale.set(glowScale, glowScale, glowScale);
+        tempObject.scale.set(glowScale, glowScale, 1);
         tempObject.updateMatrix();
         glow.setMatrixAt(i, tempObject.matrix);
-        // Reset position for reuse (already set above, just restate for clarity)
-        tempObject.position.set(node.x, node.y, node.z);
       }
 
-      // Focus dimming — core mesh
       if (focusNeighbors) {
         const isFocused = node.id === focusedNodeId;
         const isNeighbor = focusNeighbors.has(node.id);
@@ -139,10 +152,9 @@ export function InstancedNodes({ nodes, neighborMap }: InstancedNodesProps) {
         tempColor.copy(baseColors[i]).multiplyScalar(opacity);
         mesh.setColorAt(i, tempColor);
 
-        // Glow mesh: full opacity for focused/neighbors, very dim otherwise
         if (glow) {
           const glowOpacity =
-            isFocused || isNeighbor ? GLOW_OPACITY : 0.02;
+            isFocused || isNeighbor ? GLOW_OPACITY : 0.015;
           tempColor.copy(glowColors[i]).multiplyScalar(glowOpacity);
           glow.setColorAt(i, tempColor);
         }
@@ -167,20 +179,23 @@ export function InstancedNodes({ nodes, neighborMap }: InstancedNodesProps) {
 
   return (
     <>
+      {/* Glow layer: billboard planes with soft radial gradient */}
       <instancedMesh
         ref={glowRef}
         args={[undefined, undefined, nodes.length]}
         raycast={() => null}
       >
-        <sphereGeometry args={[1, 12, 12]} />
+        <planeGeometry args={[1, 1]} />
         <meshBasicMaterial
+          map={glowTexture}
           toneMapped={false}
           transparent
           blending={THREE.AdditiveBlending}
           depthWrite={false}
-          opacity={1}
+          side={THREE.DoubleSide}
         />
       </instancedMesh>
+      {/* Core node spheres */}
       <instancedMesh
         ref={meshRef}
         args={[undefined, undefined, nodes.length]}
