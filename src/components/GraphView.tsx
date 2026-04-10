@@ -84,7 +84,7 @@ export function GraphView() {
         <Edges nodes={nodes} links={links} />
         <InstancedNodes nodes={nodes} neighborMap={neighborMap} />
         <CameraController nodes={nodes} />
-        <Tooltip nodes={nodes} />
+        <Tooltip nodes={nodes} neighborMap={neighborMap} />
       </GraphCanvas>
 
       <CommandPalette nodes={nodes} />
