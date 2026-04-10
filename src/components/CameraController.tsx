@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useMemo } from "react";
+import { useRef, useEffect, useMemo, useCallback } from "react";
 import { useThree, useFrame } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import * as THREE from "three";
@@ -14,6 +14,8 @@ interface CameraControllerProps {
 
 const DEFAULT_CAMERA_POS = new THREE.Vector3(0, 0, 120);
 const DEFAULT_TARGET = new THREE.Vector3(0, 0, 0);
+const AUTO_ROTATE_SPEED = 0.001;
+const IDLE_RESUME_DELAY = 3000;
 
 export function CameraController({ nodes }: CameraControllerProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -32,6 +34,26 @@ export function CameraController({ nodes }: CameraControllerProps) {
     position: DEFAULT_CAMERA_POS.clone(),
     target: DEFAULT_TARGET.clone(),
   });
+
+  const autoRotateRef = useRef<{ active: boolean; idleTimer: ReturnType<typeof setTimeout> | null }>({
+    active: true,
+    idleTimer: null,
+  });
+
+  const handleInteractionStart = useCallback(() => {
+    autoRotateRef.current.active = false;
+    if (autoRotateRef.current.idleTimer !== null) {
+      clearTimeout(autoRotateRef.current.idleTimer);
+      autoRotateRef.current.idleTimer = null;
+    }
+  }, []);
+
+  const handleInteractionEnd = useCallback(() => {
+    autoRotateRef.current.idleTimer = setTimeout(() => {
+      autoRotateRef.current.active = true;
+      autoRotateRef.current.idleTimer = null;
+    }, IDLE_RESUME_DELAY);
+  }, []);
 
   useEffect(() => {
     if (focusedNodeId) {
@@ -56,6 +78,16 @@ export function CameraController({ nodes }: CameraControllerProps) {
     if (controlsRef.current) {
       controlsRef.current.enabled = !animating;
     }
+
+    const controls = controlsRef.current;
+    if (autoRotateRef.current.active && !animating && !focusedNodeId && controls) {
+      const offset = camera.position.clone().sub(controls.target);
+      const spherical = new THREE.Spherical().setFromVector3(offset);
+      spherical.theta += AUTO_ROTATE_SPEED;
+      offset.setFromSpherical(spherical);
+      camera.position.copy(controls.target).add(offset);
+      camera.lookAt(controls.target);
+    }
   });
 
   return (
@@ -66,6 +98,8 @@ export function CameraController({ nodes }: CameraControllerProps) {
       minDistance={10}
       maxDistance={200}
       makeDefault
+      onStart={handleInteractionStart}
+      onEnd={handleInteractionEnd}
     />
   );
 }
