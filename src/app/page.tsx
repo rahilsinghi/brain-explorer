@@ -1,10 +1,11 @@
 "use client";
 
 import { GraphCanvas } from "@/components/GraphCanvas";
+import { InstancedNodes } from "@/components/InstancedNodes";
 import { useGraphData } from "@/hooks/useGraphData";
 
 export default function Home() {
-  const { nodes, loading, error } = useGraphData();
+  const { nodes, neighborMap, loading, error } = useGraphData();
 
   if (loading) {
     return (
@@ -27,14 +28,7 @@ export default function Home() {
   return (
     <main className="h-screen w-screen relative">
       <GraphCanvas>
-        <mesh>
-          <sphereGeometry args={[1, 16, 16]} />
-          <meshStandardMaterial
-            color="#8b5cf6"
-            emissive="#8b5cf6"
-            emissiveIntensity={2}
-          />
-        </mesh>
+        <InstancedNodes nodes={nodes} neighborMap={neighborMap} />
       </GraphCanvas>
     </main>
   );
