@@ -4,6 +4,7 @@ import { useMemo, useEffect, useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
+import { remarkWikilinks } from "@/lib/wikilink-plugin";
 import type { GraphNode } from "@/lib/types";
 import { getCategoryColor } from "@/lib/categories";
 import { useGraphState } from "@/hooks/useGraphState";
@@ -100,7 +101,7 @@ export function ArticlePanel({ nodes }: ArticlePanelProps) {
             </p>
           ) : articleContent ? (
             <div className="prose prose-invert prose-sm max-w-none prose-headings:text-slate-200 prose-p:text-slate-400 prose-a:text-cyan-400 prose-strong:text-slate-300 prose-code:text-cyan-300">
-              <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]}>
+              <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks, remarkWikilinks]}>
                 {articleContent}
               </ReactMarkdown>
             </div>

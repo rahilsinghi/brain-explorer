@@ -1,10 +1,4 @@
-import type { GraphNode, GraphLink, GraphCache } from "./types";
-
-export async function fetchGraphData(): Promise<GraphCache> {
-  const res = await fetch("/graph.json");
-  if (!res.ok) throw new Error(`Failed to fetch graph: ${res.status}`);
-  return res.json();
-}
+import type { GraphNode, GraphLink } from "./types";
 
 export function normalizePositions(
   nodes: GraphNode[],

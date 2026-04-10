@@ -31,19 +31,24 @@ export function CommandPalette({ nodes }: CommandPaletteProps) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [open]);
 
-  const { filterCategory } = useMemo(() => {
+  const { filterCategory, filterSource } = useMemo(() => {
     const catMatch = search.match(/^cat:(\w+)\s*(.*)/);
     if (catMatch)
-      return { filterCategory: catMatch[1], cleanSearch: catMatch[2] };
-    return { filterCategory: null, cleanSearch: search };
+      return { filterCategory: catMatch[1], filterSource: null, cleanSearch: catMatch[2] };
+    const fromMatch = search.match(/^from:(\w+)\s*(.*)/);
+    if (fromMatch)
+      return { filterCategory: null, filterSource: fromMatch[1], cleanSearch: fromMatch[2] };
+    return { filterCategory: null, filterSource: null, cleanSearch: search };
   }, [search]);
 
   const filteredNodes = useMemo(() => {
     let filtered = nodes;
     if (filterCategory)
       filtered = filtered.filter((n) => n.category === filterCategory);
+    if (filterSource)
+      filtered = filtered.filter((n) => n.source_type === filterSource);
     return filtered;
-  }, [nodes, filterCategory]);
+  }, [nodes, filterCategory, filterSource]);
 
   const handleSelect = (nodeId: string) => {
     setFocusedNode(nodeId);
