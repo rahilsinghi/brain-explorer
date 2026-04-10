@@ -5,7 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import type { ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import type { GraphNode } from "@/lib/types";
-import { getCategoryColor, getNodeRadius } from "@/lib/categories";
+import { getCategoryColor, getGlowColor, getNodeRadius } from "@/lib/categories";
 import { useGraphState } from "@/hooks/useGraphState";
 
 interface InstancedNodesProps {
@@ -16,8 +16,12 @@ interface InstancedNodesProps {
 const tempObject = new THREE.Object3D();
 const tempColor = new THREE.Color();
 
+const GLOW_SCALE = 3.0;
+const GLOW_OPACITY = 0.15;
+
 export function InstancedNodes({ nodes, neighborMap }: InstancedNodesProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
+  const glowRef = useRef<THREE.InstancedMesh>(null);
   const focusedNodeId = useGraphState((s) => s.focusedNodeId);
   const setHoveredNode = useGraphState((s) => s.setHoveredNode);
   const setFocusedNode = useGraphState((s) => s.setFocusedNode);
@@ -45,6 +49,12 @@ export function InstancedNodes({ nodes, neighborMap }: InstancedNodesProps) {
         c.multiplyScalar(EMISSIVE_BOOST);
         return c;
       }),
+    [nodes],
+  );
+
+  // Precompute glow colors for additive blending layer
+  const glowColors = useMemo(
+    () => nodes.map((n) => new THREE.Color(getGlowColor(n.category))),
     [nodes],
   );
 
@@ -94,6 +104,7 @@ export function InstancedNodes({ nodes, neighborMap }: InstancedNodesProps) {
   useFrame(({ clock }) => {
     if (!meshRef.current) return;
     const mesh = meshRef.current;
+    const glow = glowRef.current;
     const time = clock.getElapsedTime();
 
     for (let i = 0; i < nodes.length; i++) {
@@ -110,32 +121,76 @@ export function InstancedNodes({ nodes, neighborMap }: InstancedNodesProps) {
       tempObject.updateMatrix();
       mesh.setMatrixAt(i, tempObject.matrix);
 
-      // Focus dimming
+      // Glow mesh: same position, scaled up by GLOW_SCALE
+      if (glow) {
+        const glowScale = scale * GLOW_SCALE;
+        tempObject.scale.set(glowScale, glowScale, glowScale);
+        tempObject.updateMatrix();
+        glow.setMatrixAt(i, tempObject.matrix);
+        // Reset position for reuse (already set above, just restate for clarity)
+        tempObject.position.set(node.x, node.y, node.z);
+      }
+
+      // Focus dimming — core mesh
       if (focusNeighbors) {
         const isFocused = node.id === focusedNodeId;
         const isNeighbor = focusNeighbors.has(node.id);
         const opacity = isFocused || isNeighbor ? 1.0 : 0.1;
         tempColor.copy(baseColors[i]).multiplyScalar(opacity);
         mesh.setColorAt(i, tempColor);
+
+        // Glow mesh: full opacity for focused/neighbors, very dim otherwise
+        if (glow) {
+          const glowOpacity =
+            isFocused || isNeighbor ? GLOW_OPACITY : 0.02;
+          tempColor.copy(glowColors[i]).multiplyScalar(glowOpacity);
+          glow.setColorAt(i, tempColor);
+        }
       } else {
         mesh.setColorAt(i, baseColors[i]);
+
+        if (glow) {
+          tempColor.copy(glowColors[i]).multiplyScalar(GLOW_OPACITY);
+          glow.setColorAt(i, tempColor);
+        }
       }
     }
 
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+
+    if (glow) {
+      glow.instanceMatrix.needsUpdate = true;
+      if (glow.instanceColor) glow.instanceColor.needsUpdate = true;
+    }
   });
 
   return (
-    <instancedMesh
-      ref={meshRef}
-      args={[undefined, undefined, nodes.length]}
-      onPointerMove={handlePointerMove}
-      onPointerOut={handlePointerOut}
-      onClick={handleClick}
-    >
-      <sphereGeometry args={[1, 16, 16]} />
-      <meshBasicMaterial toneMapped={false} />
-    </instancedMesh>
+    <>
+      <instancedMesh
+        ref={glowRef}
+        args={[undefined, undefined, nodes.length]}
+        raycast={() => null}
+      >
+        <sphereGeometry args={[1, 12, 12]} />
+        <meshBasicMaterial
+          toneMapped={false}
+          transparent
+          blending={THREE.AdditiveBlending}
+          depthWrite={false}
+          opacity={1}
+        />
+      </instancedMesh>
+      <instancedMesh
+        ref={meshRef}
+        args={[undefined, undefined, nodes.length]}
+        onPointerMove={handlePointerMove}
+        onPointerOut={handlePointerOut}
+        onClick={handleClick}
+      >
+        <sphereGeometry args={[1, 16, 16]} />
+        <meshBasicMaterial toneMapped={false} />
+      </instancedMesh>
+    </>
   );
 }
