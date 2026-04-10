@@ -15,7 +15,7 @@ interface CameraControllerProps {
 const DEFAULT_CAMERA_POS = new THREE.Vector3(0, 0, 120);
 const DEFAULT_TARGET = new THREE.Vector3(0, 0, 0);
 const AUTO_ROTATE_SPEED = 0.001;
-const IDLE_RESUME_DELAY = 3000;
+const IDLE_RESUME_DELAY = 800;
 
 export function CameraController({ nodes }: CameraControllerProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
