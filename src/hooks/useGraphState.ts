@@ -1,0 +1,25 @@
+import { create } from "zustand";
+
+interface GraphState {
+  focusedNodeId: string | null;
+  hoveredNodeId: string | null;
+  filterCategory: string | null;
+  filterQuery: string;
+  setFocusedNode: (id: string | null) => void;
+  clearFocus: () => void;
+  setHoveredNode: (id: string | null) => void;
+  setFilterCategory: (category: string | null) => void;
+  setFilterQuery: (query: string) => void;
+}
+
+export const useGraphState = create<GraphState>((set) => ({
+  focusedNodeId: null,
+  hoveredNodeId: null,
+  filterCategory: null,
+  filterQuery: "",
+  setFocusedNode: (id) => set({ focusedNodeId: id }),
+  clearFocus: () => set({ focusedNodeId: null }),
+  setHoveredNode: (id) => set({ hoveredNodeId: id }),
+  setFilterCategory: (category) => set({ filterCategory: category }),
+  setFilterQuery: (query) => set({ filterQuery: query }),
+}));
