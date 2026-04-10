@@ -6,6 +6,8 @@ import { InstancedNodes } from "@/components/InstancedNodes";
 import { Edges } from "@/components/Edges";
 import { CameraController } from "@/components/CameraController";
 import { Tooltip } from "@/components/Tooltip";
+import { CommandPalette } from "@/components/CommandPalette";
+import { ArticlePanel } from "@/components/ArticlePanel";
 import { useGraphData } from "@/hooks/useGraphData";
 import { useGraphState } from "@/hooks/useGraphState";
 
@@ -47,6 +49,8 @@ export default function Home() {
         <CameraController nodes={nodes} />
         <Tooltip nodes={nodes} />
       </GraphCanvas>
+      <CommandPalette nodes={nodes} />
+      <ArticlePanel nodes={nodes} />
     </main>
   );
 }

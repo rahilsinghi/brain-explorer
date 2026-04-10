@@ -18,3 +18,27 @@ body {
     border: 1px solid rgba(255, 255, 255, 0.08);
   }
 }
+
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+
+.wikilink {
+  color: #06b6d4;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+.wikilink:hover {
+  color: #22d3ee;
+}
