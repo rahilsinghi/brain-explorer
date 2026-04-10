@@ -1,56 +1,21 @@
 "use client";
 
-import { useEffect } from "react";
-import { GraphCanvas } from "@/components/GraphCanvas";
-import { InstancedNodes } from "@/components/InstancedNodes";
-import { Edges } from "@/components/Edges";
-import { CameraController } from "@/components/CameraController";
-import { Tooltip } from "@/components/Tooltip";
-import { CommandPalette } from "@/components/CommandPalette";
-import { ArticlePanel } from "@/components/ArticlePanel";
-import { useGraphData } from "@/hooks/useGraphData";
-import { useGraphState } from "@/hooks/useGraphState";
+import dynamic from "next/dynamic";
 
-export default function Home() {
-  const { nodes, links, neighborMap, loading, error } = useGraphData();
-  const clearFocus = useGraphState((s) => s.clearFocus);
-
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") clearFocus();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [clearFocus]);
-
-  if (loading) {
-    return (
+const GraphView = dynamic(
+  () => import("@/components/GraphView").then((m) => m.GraphView),
+  {
+    ssr: false,
+    loading: () => (
       <main className="h-screen w-screen flex items-center justify-center">
         <p className="text-slate-500 text-sm animate-pulse">
           Loading graph...
         </p>
       </main>
-    );
-  }
+    ),
+  },
+);
 
-  if (error) {
-    return (
-      <main className="h-screen w-screen flex items-center justify-center">
-        <p className="text-red-400 text-sm">{error}</p>
-      </main>
-    );
-  }
-
-  return (
-    <main className="h-screen w-screen relative">
-      <GraphCanvas onPointerMissed={clearFocus}>
-        <Edges nodes={nodes} links={links} />
-        <InstancedNodes nodes={nodes} neighborMap={neighborMap} />
-        <CameraController nodes={nodes} />
-        <Tooltip nodes={nodes} />
-      </GraphCanvas>
-      <CommandPalette nodes={nodes} />
-      <ArticlePanel nodes={nodes} />
-    </main>
-  );
+export default function Home() {
+  return <GraphView />;
 }
