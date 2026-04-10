@@ -2,6 +2,8 @@
 
 import { Canvas } from "@react-three/fiber";
 import { EffectComposer, Bloom } from "@react-three/postprocessing";
+import * as THREE from "three";
+import { Starfield } from "@/components/Starfield";
 
 interface GraphCanvasProps {
   children: React.ReactNode;
@@ -14,14 +16,16 @@ export function GraphCanvas({ children, onPointerMissed }: GraphCanvasProps) {
       camera={{ position: [0, 0, 120], fov: 60, near: 0.1, far: 1000 }}
       style={{ position: "absolute", inset: 0 }}
       gl={{ antialias: true, alpha: false }}
-      onCreated={({ gl }) => {
+      onCreated={({ gl, scene }) => {
         gl.setClearColor("#050510");
+        scene.fog = new THREE.FogExp2("#050510", 0.003);
       }}
       onPointerMissed={onPointerMissed}
     >
       <ambientLight intensity={0.15} />
       <pointLight position={[50, 50, 50]} intensity={0.5} />
 
+      <Starfield />
       {children}
 
       <EffectComposer>
