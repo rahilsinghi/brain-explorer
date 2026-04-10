@@ -88,7 +88,7 @@ export function GraphView() {
       </GraphCanvas>
 
       <CommandPalette nodes={nodes} />
-      <ArticlePanel nodes={nodes} />
+      <ArticlePanel nodes={nodes} neighborMap={neighborMap} />
       <GraphMeta nodeCount={nodes.length} generatedAt={generatedAt} />
       <AdminRefresh />
     </main>
