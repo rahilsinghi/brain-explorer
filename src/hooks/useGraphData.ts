@@ -1,0 +1,54 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import type { GraphCache, GraphNode, GraphLink } from "@/lib/types";
+import { normalizePositions, buildNeighborMap } from "@/lib/graph-data";
+import { applyCollisionLayout } from "@/lib/force-layout";
+
+interface GraphDataResult {
+  nodes: GraphNode[];
+  links: GraphLink[];
+  neighborMap: Map<string, Set<string>>;
+  generatedAt: string;
+  loading: boolean;
+  error: string | null;
+}
+
+const SCENE_RADIUS = 50;
+const COLLIDE_RADIUS = 2.0;
+
+export function useGraphData(): GraphDataResult {
+  const [nodes, setNodes] = useState<GraphNode[]>([]);
+  const [links, setLinks] = useState<GraphLink[]>([]);
+  const [neighborMap, setNeighborMap] = useState<Map<string, Set<string>>>(
+    new Map(),
+  );
+  const [generatedAt, setGeneratedAt] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function load() {
+      try {
+        const res = await fetch("/graph.json");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data: GraphCache = await res.json();
+
+        const normalized = normalizePositions(data.nodes, SCENE_RADIUS);
+        const positioned = applyCollisionLayout(normalized, COLLIDE_RADIUS);
+
+        setNodes(positioned);
+        setLinks(data.links);
+        setNeighborMap(buildNeighborMap(data.links));
+        setGeneratedAt(data.generated_at);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to load graph");
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, []);
+
+  return { nodes, links, neighborMap, generatedAt, loading, error };
+}
