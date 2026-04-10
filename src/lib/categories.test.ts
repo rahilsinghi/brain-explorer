@@ -1,9 +1,15 @@
 import { describe, it, expect } from "vitest";
-import { getCategoryColor, getNodeRadius, CATEGORY_COLORS } from "./categories";
+import {
+  getCategoryColor,
+  getGlowColor,
+  getNodeRadius,
+  CATEGORY_COLORS,
+  CATEGORY_GLOW_COLORS,
+} from "./categories";
 
 describe("getCategoryColor", () => {
   it("returns correct hex for known categories", () => {
-    expect(getCategoryColor("projects")).toBe("#8b5cf6");
+    expect(getCategoryColor("projects")).toBe("#a78bfa");
     expect(getCategoryColor("skills")).toBe("#06b6d4");
     expect(getCategoryColor("companies")).toBe("#ec4899");
     expect(getCategoryColor("experience")).toBe("#f59e0b");
@@ -15,6 +21,21 @@ describe("getCategoryColor", () => {
 
   it("returns default white for unknown category", () => {
     expect(getCategoryColor("unknown")).toBe("#e2e8f0");
+  });
+});
+
+describe("CATEGORY_COLORS", () => {
+  it("projects color is brighter violet (#a78bfa)", () => {
+    expect(CATEGORY_COLORS.projects).toBe("#a78bfa");
+  });
+});
+
+describe("getGlowColor", () => {
+  it("returns glow color for known category", () => {
+    expect(getGlowColor("projects")).toBe("#c4b5fd");
+  });
+  it("returns default glow for unknown category", () => {
+    expect(getGlowColor("nonexistent")).toBe("#e2e8f0");
   });
 });
 

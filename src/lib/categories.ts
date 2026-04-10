@@ -1,19 +1,35 @@
 export const CATEGORY_COLORS: Record<string, string> = {
-  projects: "#8b5cf6",
-  skills: "#06b6d4",
-  companies: "#ec4899",
-  experience: "#f59e0b",
-  decisions: "#22c55e",
-  people: "#f4723b",
-  concepts: "#e2e8f0",
-  synthesis: "#14b8a6",
-  tracking: "#06b6d4",
+  projects: "#a78bfa",    // Brighter violet (was #8b5cf6)
+  skills: "#06b6d4",      // Cyan
+  companies: "#ec4899",   // Pink
+  experience: "#f59e0b",  // Amber
+  decisions: "#22c55e",   // Green
+  people: "#f4723b",      // Orange
+  concepts: "#e2e8f0",    // Slate-200
+  synthesis: "#14b8a6",   // Teal
+  tracking: "#06b6d4",    // Cyan
+};
+
+export const CATEGORY_GLOW_COLORS: Record<string, string> = {
+  projects: "#c4b5fd",    // Light violet
+  skills: "#22d3ee",      // Bright cyan
+  companies: "#f472b6",   // Light pink
+  experience: "#fbbf24",  // Bright amber
+  decisions: "#4ade80",   // Light green
+  people: "#fb923c",      // Light orange
+  concepts: "#f1f5f9",    // Slate-100
+  synthesis: "#2dd4bf",   // Light teal
+  tracking: "#22d3ee",    // Bright cyan
 };
 
 const DEFAULT_COLOR = "#e2e8f0";
 
 export function getCategoryColor(category: string): string {
   return CATEGORY_COLORS[category] ?? DEFAULT_COLOR;
+}
+
+export function getGlowColor(category: string): string {
+  return CATEGORY_GLOW_COLORS[category] ?? DEFAULT_COLOR;
 }
 
 const MIN_RADIUS = 0.3;
