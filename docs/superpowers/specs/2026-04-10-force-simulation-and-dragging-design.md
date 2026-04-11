@@ -99,7 +99,7 @@ function useSimulation(
 ```
 
 - **Does not** receive `neighborMap` — the simulation only needs nodes and links. `neighborMap` remains a separate prop for focus-alpha in InstancedNodes/Edges.
-- `reheat(alpha)` — sets `simulation.alpha(alpha).restart()` then immediately `simulation.stop()` (restart clears internal stopped flag so `tick()` works, stop prevents internal timer).
+- `reheat(alpha)` — sets `simulation.alpha(alpha)` and `simulationActive = true`. Does **not** call `restart()` — the simulation is never started via d3's internal timer. `simulation.tick()` works without `restart()` as long as alpha > alphaMin; d3-force-3d's `tick()` is stateless and just advances one step regardless of the internal timer state. If testing reveals that `tick()` is a no-op when stopped, fall back to `restart()` + immediate `stop()` with a comment explaining the one-tick timer risk.
 - `pin(index, x, y, z)` — sets `simNodes[index].fx/fy/fz`.
 - `unpin(index)` — clears `fx/fy/fz` to null.
 - `restoreDecay()` — resets `simulation.alphaDecay(0.02)`. Called by InstancedNodes when RELEASING → IDLE transition fires.
@@ -348,4 +348,4 @@ This design accommodates Phase 5 (Graphify Explorer Integration) without changes
 
 - **Layer toggle:** When code nodes are added, `useSimulation` is re-initialized with the new node/link set. `positionsRef` and `nodeIndexMap` are rebuilt. Edge Float32Array rebuilds via useEffect on `links.length` change.
 - **Drill-in:** Code nodes fly in via the drill-in animation hook (Phase 5, Task 8), then join the simulation. Reheat handles the new nodes settling.
-- **God nodes:** Can be pinned at z=-200 via `fx/fy/fz` — same pinning mechanism as drag.
+- **God nodes:** Can be pinned at z=-200 via `fx/fy/fz` — same pinning mechanism as drag, but set permanently during `createForceSimulation()` node initialization (not via the drag `pin()`/`unpin()` functions, which are temporary). God node `fx/fy/fz` are never cleared.
