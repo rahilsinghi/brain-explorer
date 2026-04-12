@@ -1,40 +1,23 @@
 "use client";
 
 import type { GraphNode, GraphLink } from "@/lib/types";
-import { useSimulation } from "@/hooks/useSimulation";
+import { useSphereLayout } from "@/hooks/useSphereLayout";
 import { useDrag } from "@/hooks/useDrag";
 import { InstancedNodes } from "@/components/InstancedNodes";
 import { Edges } from "@/components/Edges";
 
-interface SimulationConsumerProps {
+interface SphereConsumerProps {
   nodes: GraphNode[];
   links: GraphLink[];
   neighborMap: Map<string, Set<string>>;
 }
 
-export function SimulationConsumer({ nodes, links, neighborMap }: SimulationConsumerProps) {
-  const {
-    positionsRef,
-    simNodesRef,
-    nodeIndexMap,
-    simulationRef,
-    simulationActive,
-    tick,
-    reheat,
-    pin,
-    unpin,
-    restoreDecay,
-  } = useSimulation(nodes, links);
-
+export function SphereConsumer({ nodes, links, neighborMap }: SphereConsumerProps) {
+  const { positionsRef, restPositionsRef, nodeIndexMap } = useSphereLayout(nodes);
   const { onPointerDown, dragState, draggedIndex } = useDrag({
-    simulationRef,
-    simNodesRef,
     positionsRef,
+    restPositionsRef,
     nodeIndexMap,
-    reheat,
-    pin,
-    unpin,
-    restoreDecay,
   });
 
   if (nodes.length === 0) return null;
@@ -46,20 +29,15 @@ export function SimulationConsumer({ nodes, links, neighborMap }: SimulationCons
         links={links}
         positionsRef={positionsRef}
         nodeIndexMap={nodeIndexMap}
-        simulationActive={simulationActive}
       />
       <InstancedNodes
         nodes={nodes}
         neighborMap={neighborMap}
         positionsRef={positionsRef}
-        simulationRef={simulationRef}
-        simNodesRef={simNodesRef}
-        simulationActive={simulationActive}
-        tick={tick}
-        restoreDecay={restoreDecay}
+        nodeIndexMap={nodeIndexMap}
+        onNodePointerDown={onPointerDown}
         dragState={dragState}
         draggedIndex={draggedIndex}
-        onNodePointerDown={onPointerDown}
       />
     </>
   );

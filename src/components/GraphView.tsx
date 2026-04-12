@@ -10,7 +10,7 @@ import { AdminRefresh } from "@/components/AdminRefresh";
 import { GraphMeta } from "@/components/GraphMeta";
 import { useGraphData } from "@/hooks/useGraphData";
 import { useGraphState } from "@/hooks/useGraphState";
-import { SimulationConsumer } from "@/components/SimulationConsumer";
+import { SphereConsumer } from "@/components/SphereConsumer";
 
 export function GraphView() {
   const { nodes, links, neighborMap, generatedAt, loading, error } =
@@ -80,7 +80,7 @@ export function GraphView() {
   return (
     <main className="h-screen w-screen relative">
       <GraphCanvas onPointerMissed={clearFocus}>
-        <SimulationConsumer nodes={nodes} links={links} neighborMap={neighborMap} />
+        <SphereConsumer nodes={nodes} links={links} neighborMap={neighborMap} />
         <CameraController nodes={nodes} />
         <Tooltip nodes={nodes} neighborMap={neighborMap} />
       </GraphCanvas>

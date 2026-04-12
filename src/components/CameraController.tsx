@@ -12,7 +12,7 @@ interface CameraControllerProps {
   nodes: GraphNode[];
 }
 
-const DEFAULT_CAMERA_POS = new THREE.Vector3(0, 0, 120);
+const DEFAULT_CAMERA_POS = new THREE.Vector3(0, 0, 90);
 const DEFAULT_TARGET = new THREE.Vector3(0, 0, 0);
 const AUTO_ROTATE_SPEED = 0.001;
 const IDLE_RESUME_DELAY = 800;
@@ -97,8 +97,8 @@ export function CameraController({ nodes }: CameraControllerProps) {
       ref={controlsRef}
       enableDamping
       dampingFactor={0.05}
-      minDistance={10}
-      maxDistance={200}
+      minDistance={20}
+      maxDistance={150}
       makeDefault
       onStart={handleInteractionStart}
       onEnd={handleInteractionEnd}

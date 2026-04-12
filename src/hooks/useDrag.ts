@@ -1,25 +1,22 @@
 "use client";
 
 import { useRef, useCallback, useEffect } from "react";
-import { useThree } from "@react-three/fiber";
+import { useThree, useFrame } from "@react-three/fiber";
 import type { ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
-import type { Simulation } from "d3-force-3d";
-import type { SimNode, DragState } from "@/lib/types";
+import type { DragState } from "@/lib/types";
+import { stepSpring, isSpringSettled } from "@/lib/spring";
 import { useGraphState } from "@/hooks/useGraphState";
 
 const DRAG_THRESHOLD_PX = 5;
 const POSITION_CLAMP = 80;
+const SPRING_STIFFNESS = 180;
+const SPRING_DAMPING = 0.85;
 
 interface UseDragParams {
-  simulationRef: React.MutableRefObject<Simulation<SimNode>>;
-  simNodesRef: React.MutableRefObject<SimNode[]>;
   positionsRef: React.MutableRefObject<Float32Array>;
+  restPositionsRef: React.MutableRefObject<Float32Array>;
   nodeIndexMap: React.MutableRefObject<Map<string, number>>;
-  reheat: (alpha?: number) => void;
-  pin: (index: number, x: number, y: number, z: number) => void;
-  unpin: (index: number) => void;
-  restoreDecay: () => void;
 }
 
 interface UseDragReturn {
@@ -29,20 +26,18 @@ interface UseDragReturn {
 }
 
 export function useDrag({
-  simulationRef,
-  simNodesRef,
   positionsRef,
+  restPositionsRef,
   nodeIndexMap,
-  reheat,
-  pin,
-  unpin,
-  restoreDecay,
 }: UseDragParams): UseDragReturn {
   const { camera, raycaster } = useThree();
   const dragState = useRef<DragState>("IDLE");
   const draggedIndex = useRef<number | null>(null);
   const pointerStart = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const thresholdCrossed = useRef(false);
+
+  const springVelocity = useRef<{ x: number; y: number; z: number }>({ x: 0, y: 0, z: 0 });
+  const snappingIndex = useRef<number | null>(null);
 
   const plane = useRef(new THREE.Plane());
   const intersection = useRef(new THREE.Vector3());
@@ -54,40 +49,39 @@ export function useDrag({
   const clearFocus = useGraphState((s) => s.clearFocus);
   const setIsDragging = useGraphState((s) => s.setIsDragging);
 
+  const indexToNodeId = useRef<Map<number, string>>(new Map());
+  useEffect(() => {
+    const map = new Map<number, string>();
+    for (const [id, idx] of nodeIndexMap.current) {
+      map.set(idx, id);
+    }
+    indexToNodeId.current = map;
+  }, [nodeIndexMap]);
+
   const handlePointerMove = useCallback(
     (e: PointerEvent) => {
       if (draggedIndex.current === null) return;
       const idx = draggedIndex.current;
 
-      // Check threshold before entering drag state
       if (!thresholdCrossed.current) {
         const dx = e.clientX - pointerStart.current.x;
         const dy = e.clientY - pointerStart.current.y;
         if (Math.sqrt(dx * dx + dy * dy) < DRAG_THRESHOLD_PX) return;
 
-        // Threshold crossed — enter DRAGGING state
         thresholdCrossed.current = true;
         dragState.current = "DRAGGING";
-
-        const simNode = simNodesRef.current[idx];
+        const nodeId = indexToNodeId.current.get(idx);
         setIsDragging(true);
-        setFocusedNode(simNode.id);
-        reheat(0.15);
+        if (nodeId) setFocusedNode(nodeId);
       }
 
-      // Project pointer onto camera-perpendicular plane through the pinned node
       const positions = positionsRef.current;
       const offset = idx * 3;
-      nodePos.current.set(
-        positions[offset],
-        positions[offset + 1],
-        positions[offset + 2],
-      );
+      nodePos.current.set(positions[offset], positions[offset + 1], positions[offset + 2]);
 
       camera.getWorldDirection(normal.current);
       plane.current.setFromNormalAndCoplanarPoint(normal.current, nodePos.current);
 
-      // Build ray from pointer position
       ndc.current.set(
         (e.clientX / window.innerWidth) * 2 - 1,
         -(e.clientY / window.innerHeight) * 2 + 1,
@@ -98,10 +92,12 @@ export function useDrag({
         const x = Math.max(-POSITION_CLAMP, Math.min(POSITION_CLAMP, intersection.current.x));
         const y = Math.max(-POSITION_CLAMP, Math.min(POSITION_CLAMP, intersection.current.y));
         const z = Math.max(-POSITION_CLAMP, Math.min(POSITION_CLAMP, intersection.current.z));
-        pin(idx, x, y, z);
+        positions[offset] = x;
+        positions[offset + 1] = y;
+        positions[offset + 2] = z;
       }
     },
-    [camera, raycaster, simNodesRef, positionsRef, pin, reheat, setFocusedNode, setIsDragging],
+    [camera, raycaster, positionsRef, setFocusedNode, setIsDragging],
   );
 
   const handlePointerUp = useCallback(() => {
@@ -110,26 +106,59 @@ export function useDrag({
     const idx = draggedIndex.current;
 
     if (!thresholdCrossed.current && idx !== null) {
-      // Pointer didn't cross threshold — treat as click (focus)
-      const simNode = simNodesRef.current[idx];
-      if (simNode) {
-        setFocusedNode(simNode.id);
-      }
+      const nodeId = indexToNodeId.current.get(idx);
+      if (nodeId) setFocusedNode(nodeId);
       draggedIndex.current = null;
       dragState.current = "IDLE";
       return;
     }
 
     if (idx !== null) {
-      unpin(idx);
-      simulationRef.current.alphaDecay(0.05);
-      dragState.current = "RELEASING";
+      snappingIndex.current = idx;
+      springVelocity.current = { x: 0, y: 0, z: 0 };
+      dragState.current = "SNAPPING";
     }
 
     draggedIndex.current = null;
     setIsDragging(false);
     clearFocus();
-  }, [handlePointerMove, simNodesRef, unpin, simulationRef, setFocusedNode, setIsDragging, clearFocus]);
+  }, [handlePointerMove, setFocusedNode, setIsDragging, clearFocus]);
+
+  useFrame((_, delta) => {
+    if (dragState.current !== "SNAPPING" || snappingIndex.current === null) return;
+
+    const idx = snappingIndex.current;
+    const offset = idx * 3;
+    const positions = positionsRef.current;
+    const rest = restPositionsRef.current;
+    const vel = springVelocity.current;
+
+    const dt = Math.min(delta, 0.05);
+
+    const rx = stepSpring({ position: positions[offset], velocity: vel.x }, rest[offset], SPRING_STIFFNESS, SPRING_DAMPING, dt);
+    const ry = stepSpring({ position: positions[offset + 1], velocity: vel.y }, rest[offset + 1], SPRING_STIFFNESS, SPRING_DAMPING, dt);
+    const rz = stepSpring({ position: positions[offset + 2], velocity: vel.z }, rest[offset + 2], SPRING_STIFFNESS, SPRING_DAMPING, dt);
+
+    positions[offset] = rx.position;
+    positions[offset + 1] = ry.position;
+    positions[offset + 2] = rz.position;
+    vel.x = rx.velocity;
+    vel.y = ry.velocity;
+    vel.z = rz.velocity;
+
+    const settled =
+      isSpringSettled(rx.position - rest[offset], rx.velocity) &&
+      isSpringSettled(ry.position - rest[offset + 1], ry.velocity) &&
+      isSpringSettled(rz.position - rest[offset + 2], rz.velocity);
+
+    if (settled) {
+      positions[offset] = rest[offset];
+      positions[offset + 1] = rest[offset + 1];
+      positions[offset + 2] = rest[offset + 2];
+      snappingIndex.current = null;
+      dragState.current = "IDLE";
+    }
+  });
 
   const onPointerDown = useCallback(
     (event: ThreeEvent<PointerEvent>) => {
@@ -148,7 +177,6 @@ export function useDrag({
     [handlePointerMove, handlePointerUp],
   );
 
-  // Cleanup window listeners on unmount to prevent leaks during mid-drag re-renders
   useEffect(() => {
     return () => {
       window.removeEventListener("pointermove", handlePointerMove);

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { GraphCache, GraphNode, GraphLink } from "@/lib/types";
-import { normalizePositions, buildNeighborMap } from "@/lib/graph-data";
+import { buildNeighborMap } from "@/lib/graph-data";
 
 interface GraphDataResult {
   nodes: GraphNode[];
@@ -12,8 +12,6 @@ interface GraphDataResult {
   loading: boolean;
   error: string | null;
 }
-
-const SCENE_RADIUS = 50;
 
 export function useGraphData(): GraphDataResult {
   const [nodes, setNodes] = useState<GraphNode[]>([]);
@@ -32,9 +30,7 @@ export function useGraphData(): GraphDataResult {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data: GraphCache = await res.json();
 
-        const normalized = normalizePositions(data.nodes, SCENE_RADIUS);
-
-        setNodes(normalized);
+        setNodes(data.nodes);
         setLinks(data.links);
         setNeighborMap(buildNeighborMap(data.links));
         setGeneratedAt(data.generated_at);
