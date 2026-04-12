@@ -2,8 +2,6 @@
 
 import { useEffect } from "react";
 import { GraphCanvas } from "@/components/GraphCanvas";
-import { InstancedNodes } from "@/components/InstancedNodes";
-import { Edges } from "@/components/Edges";
 import { CameraController } from "@/components/CameraController";
 import { Tooltip } from "@/components/Tooltip";
 import { CommandPalette } from "@/components/CommandPalette";
@@ -12,6 +10,7 @@ import { AdminRefresh } from "@/components/AdminRefresh";
 import { GraphMeta } from "@/components/GraphMeta";
 import { useGraphData } from "@/hooks/useGraphData";
 import { useGraphState } from "@/hooks/useGraphState";
+import { SimulationConsumer } from "@/components/SimulationConsumer";
 
 export function GraphView() {
   const { nodes, links, neighborMap, generatedAt, loading, error } =
@@ -81,8 +80,7 @@ export function GraphView() {
   return (
     <main className="h-screen w-screen relative">
       <GraphCanvas onPointerMissed={clearFocus}>
-        <Edges nodes={nodes} links={links} />
-        <InstancedNodes nodes={nodes} neighborMap={neighborMap} />
+        <SimulationConsumer nodes={nodes} links={links} neighborMap={neighborMap} />
         <CameraController nodes={nodes} />
         <Tooltip nodes={nodes} neighborMap={neighborMap} />
       </GraphCanvas>
