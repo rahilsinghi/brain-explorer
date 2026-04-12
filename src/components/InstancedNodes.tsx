@@ -35,6 +35,9 @@ export function InstancedNodes({
   const focusedNodeId = useGraphState((s) => s.focusedNodeId);
   const setHoveredNode = useGraphState((s) => s.setHoveredNode);
 
+  // R3F shared buffer pattern: nodeIndexMap is a ref populated in the same render pass.
+  // Manual deps include `nodes` to recompute when graph data changes.
+  /* eslint-disable react-hooks/exhaustive-deps */
   const instanceToNodeId = useMemo(() => {
     const map = new Map<number, string>();
     const idxMap = nodeIndexMap.current;
@@ -42,7 +45,8 @@ export function InstancedNodes({
       map.set(idx, nodeId);
     }
     return map;
-  }, [nodeIndexMap, nodes]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [nodeIndexMap, nodes]);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   const radii = useMemo(() => {
     const idxMap = nodeIndexMap.current;

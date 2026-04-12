@@ -37,14 +37,14 @@ describe("stepSpring", () => {
 
 describe("isSpringSettled", () => {
   it("returns false when displaced", () => {
-    expect(isSpringSettled(5, 0, 0)).toBe(false);
+    expect(isSpringSettled(5, 0)).toBe(false);
   });
 
   it("returns false when moving fast", () => {
-    expect(isSpringSettled(0.005, 1, 0)).toBe(false);
+    expect(isSpringSettled(0.005, 1)).toBe(false);
   });
 
   it("returns true when close and slow", () => {
-    expect(isSpringSettled(0.005, 0.005, 0)).toBe(true);
+    expect(isSpringSettled(0.005, 0.005)).toBe(true);
   });
 });

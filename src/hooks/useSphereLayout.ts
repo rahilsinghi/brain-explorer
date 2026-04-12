@@ -11,6 +11,9 @@ export function useSphereLayout(nodes: GraphNode[]) {
   const restPositionsRef = useRef<Float32Array>(new Float32Array(0));
   const nodeIndexMapRef = useRef<Map<string, number>>(new Map());
 
+  // R3F shared buffers must be set synchronously during render for useFrame consumers.
+  // useEffect is too late — children read refs in the same render pass.
+  /* eslint-disable react-hooks/refs */
   useMemo(() => {
     if (nodes.length === 0) return;
 
@@ -20,6 +23,7 @@ export function useSphereLayout(nodes: GraphNode[]) {
     positionsRef.current = new Float32Array(positions);
     nodeIndexMapRef.current = nodeIndexMap;
   }, [nodes]);
+  /* eslint-enable react-hooks/refs */
 
   return {
     positionsRef,

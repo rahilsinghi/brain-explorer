@@ -147,9 +147,9 @@ export function useDrag({
     vel.z = rz.velocity;
 
     const settled =
-      isSpringSettled(rx.position - rest[offset], rx.velocity, 0) &&
-      isSpringSettled(ry.position - rest[offset + 1], ry.velocity, 0) &&
-      isSpringSettled(rz.position - rest[offset + 2], rz.velocity, 0);
+      isSpringSettled(rx.position - rest[offset], rx.velocity) &&
+      isSpringSettled(ry.position - rest[offset + 1], ry.velocity) &&
+      isSpringSettled(rz.position - rest[offset + 2], rz.velocity);
 
     if (settled) {
       positions[offset] = rest[offset];

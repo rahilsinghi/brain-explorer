@@ -22,7 +22,6 @@ export function stepSpring(
 export function isSpringSettled(
   displacement: number,
   velocity: number,
-  _restPosition: number,
 ): boolean {
   return Math.abs(displacement) < SETTLE_THRESHOLD && Math.abs(velocity) < SETTLE_THRESHOLD;
 }

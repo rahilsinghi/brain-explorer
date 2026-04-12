@@ -39,7 +39,9 @@ export function Edges({ nodes, links, positionsRef, nodeIndexMap }: EdgesProps) 
     return { nodeCategories: cats, categoryColors: colors };
   }, [nodes]);
 
-  // Build arc geometry
+  // Build arc geometry — reads refs synchronously (R3F shared buffer pattern).
+  // Refs are populated by useSphereLayout in the same render pass.
+  /* eslint-disable react-hooks/refs */
   const { geometry, linkSourceTargets } = useMemo(() => {
     const geo = new THREE.BufferGeometry();
     if (links.length === 0) return { geometry: geo, linkSourceTargets: [] };
@@ -60,6 +62,7 @@ export function Edges({ nodes, links, positionsRef, nodeIndexMap }: EdgesProps) 
 
     return { geometry: geo, linkSourceTargets: result.linkSourceTargets };
   }, [links, positionsRef, nodeIndexMap, nodeCategories, categoryColors]);
+  /* eslint-enable react-hooks/refs */
 
   // Focus-alpha: mutate color attribute on focus change
   useEffect(() => {
