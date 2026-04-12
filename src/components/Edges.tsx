@@ -82,9 +82,12 @@ export function Edges({
 
     edgePositionsRef.current = positions;
 
+    // Use BufferAttribute (not Float32BufferAttribute) so the geometry
+    // shares the same Float32Array reference as edgePositionsRef.
+    // Float32BufferAttribute copies the data, breaking dynamic updates.
     geo.setAttribute(
       "position",
-      new THREE.Float32BufferAttribute(positions, 3),
+      new THREE.BufferAttribute(positions, 3),
     );
     geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 4));
 
