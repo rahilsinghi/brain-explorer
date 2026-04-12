@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import type { GraphCache, GraphNode, GraphLink } from "@/lib/types";
 import { normalizePositions, buildNeighborMap } from "@/lib/graph-data";
-import { applyCollisionLayout } from "@/lib/force-layout";
 
 interface GraphDataResult {
   nodes: GraphNode[];
@@ -15,7 +14,6 @@ interface GraphDataResult {
 }
 
 const SCENE_RADIUS = 50;
-const COLLIDE_RADIUS = 2.0;
 
 export function useGraphData(): GraphDataResult {
   const [nodes, setNodes] = useState<GraphNode[]>([]);
@@ -35,9 +33,8 @@ export function useGraphData(): GraphDataResult {
         const data: GraphCache = await res.json();
 
         const normalized = normalizePositions(data.nodes, SCENE_RADIUS);
-        const positioned = applyCollisionLayout(normalized, COLLIDE_RADIUS);
 
-        setNodes(positioned);
+        setNodes(normalized);
         setLinks(data.links);
         setNeighborMap(buildNeighborMap(data.links));
         setGeneratedAt(data.generated_at);
