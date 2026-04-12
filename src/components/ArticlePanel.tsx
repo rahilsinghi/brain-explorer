@@ -215,9 +215,11 @@ export function ArticlePanel({ nodes, neighborMap }: ArticlePanelProps) {
           flexDirection: "column",
           overflow: "hidden",
           borderRadius: "20px",
-          background: "#0a0a18",
-          border: "1px solid rgba(255,255,255,0.07)",
-          boxShadow: `0 0 0 1px rgba(0,0,0,0.3), 0 25px 60px rgba(0,0,0,0.5), 0 0 80px ${color}10`,
+          background: "rgba(15, 15, 30, 0.6)",
+          backdropFilter: "blur(20px)",
+          WebkitBackdropFilter: "blur(20px)",
+          border: "1px solid rgba(255,255,255,0.1)",
+          boxShadow: `0 25px 60px rgba(0,0,0,0.5), 0 0 80px ${color}10`,
         }}
       >
         {/* Header — colored gradient top */}
