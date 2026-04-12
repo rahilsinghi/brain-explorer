@@ -153,8 +153,9 @@ export function Edges({
       const edgePositions = edgePositionsRef.current;
 
       for (let i = 0; i < linkSourceTargets.length; i++) {
-        const si = indexMap.get(linkSourceTargets[i].source)!;
-        const ti = indexMap.get(linkSourceTargets[i].target)!;
+        const si = indexMap.get(linkSourceTargets[i].source);
+        const ti = indexMap.get(linkSourceTargets[i].target);
+        if (si === undefined || ti === undefined) continue;
         const offset = i * 6;
 
         edgePositions[offset] = positions[si * 3];

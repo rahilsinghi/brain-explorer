@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect } from "react";
 import { useThree } from "@react-three/fiber";
 import type { ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
@@ -47,6 +47,8 @@ export function useDrag({
   const plane = useRef(new THREE.Plane());
   const intersection = useRef(new THREE.Vector3());
   const normal = useRef(new THREE.Vector3());
+  const nodePos = useRef(new THREE.Vector3());
+  const ndc = useRef(new THREE.Vector2());
 
   const setFocusedNode = useGraphState((s) => s.setFocusedNode);
   const clearFocus = useGraphState((s) => s.clearFocus);
@@ -76,21 +78,21 @@ export function useDrag({
       // Project pointer onto camera-perpendicular plane through the pinned node
       const positions = positionsRef.current;
       const offset = idx * 3;
-      const nodePos = new THREE.Vector3(
+      nodePos.current.set(
         positions[offset],
         positions[offset + 1],
         positions[offset + 2],
       );
 
       camera.getWorldDirection(normal.current);
-      plane.current.setFromNormalAndCoplanarPoint(normal.current, nodePos);
+      plane.current.setFromNormalAndCoplanarPoint(normal.current, nodePos.current);
 
       // Build ray from pointer position
-      const ndc = new THREE.Vector2(
+      ndc.current.set(
         (e.clientX / window.innerWidth) * 2 - 1,
         -(e.clientY / window.innerHeight) * 2 + 1,
       );
-      raycaster.setFromCamera(ndc, camera);
+      raycaster.setFromCamera(ndc.current, camera);
 
       if (raycaster.ray.intersectPlane(plane.current, intersection.current)) {
         const x = Math.max(-POSITION_CLAMP, Math.min(POSITION_CLAMP, intersection.current.x));
@@ -145,6 +147,14 @@ export function useDrag({
     },
     [handlePointerMove, handlePointerUp],
   );
+
+  // Cleanup window listeners on unmount to prevent leaks during mid-drag re-renders
+  useEffect(() => {
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, [handlePointerMove, handlePointerUp]);
 
   return { onPointerDown, dragState, draggedIndex };
 }
