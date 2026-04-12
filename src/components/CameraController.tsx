@@ -21,6 +21,7 @@ export function CameraController({ nodes }: CameraControllerProps) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const controlsRef = useRef<any>(null);
   const focusedNodeId = useGraphState((s) => s.focusedNodeId);
+  const isDragging = useGraphState((s) => s.isDragging);
   const { flyTo, resetTo, update } = useCameraAnimation();
   const { camera } = useThree();
 
@@ -56,6 +57,7 @@ export function CameraController({ nodes }: CameraControllerProps) {
   }, []);
 
   useEffect(() => {
+    if (isDragging) return;
     if (focusedNodeId) {
       const node = nodeMap.get(focusedNodeId);
       if (!node) return;
@@ -71,16 +73,16 @@ export function CameraController({ nodes }: CameraControllerProps) {
     } else {
       resetTo(savedOrbitRef.current.position, savedOrbitRef.current.target);
     }
-  }, [focusedNodeId, nodeMap, camera, flyTo, resetTo]);
+  }, [focusedNodeId, isDragging, nodeMap, camera, flyTo, resetTo]);
 
   useFrame((_, delta) => {
     const animating = update(delta, camera, controlsRef.current);
     if (controlsRef.current) {
-      controlsRef.current.enabled = !animating;
+      controlsRef.current.enabled = !animating && !isDragging;
     }
 
     const controls = controlsRef.current;
-    if (autoRotateRef.current.active && !animating && !focusedNodeId && controls) {
+    if (autoRotateRef.current.active && !animating && !focusedNodeId && !isDragging && controls) {
       const offset = camera.position.clone().sub(controls.target);
       const spherical = new THREE.Spherical().setFromVector3(offset);
       spherical.theta += AUTO_ROTATE_SPEED;
