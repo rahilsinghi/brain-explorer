@@ -10,6 +10,9 @@ import { getCategoryColor } from "@/lib/categories";
 interface EdgesProps {
   nodes: GraphNode[];
   links: GraphLink[];
+  positionsRef: React.MutableRefObject<Float32Array>;
+  nodeIndexMap: React.MutableRefObject<Map<string, number>>;
+  simulationActive: React.MutableRefObject<boolean>;
 }
 
 const DEFAULT_ALPHA = 0.5;
@@ -17,41 +20,67 @@ const FOCUS_ALPHA = 0.8;
 const DIMMED_ALPHA = 0.05;
 const PARTICLE_SPEED = 0.4;
 
-export function Edges({ nodes, links }: EdgesProps) {
+export function Edges({
+  nodes,
+  links,
+  positionsRef,
+  nodeIndexMap,
+  simulationActive,
+}: EdgesProps) {
   const lineRef = useRef<THREE.LineSegments>(null);
   const particleRef = useRef<THREE.Points>(null);
   const focusedNodeId = useGraphState((s) => s.focusedNodeId);
 
+  // Node map for category color lookup only
   const nodeMap = useMemo(() => {
     const m = new Map<string, GraphNode>();
     for (const n of nodes) m.set(n.id, n);
     return m;
   }, [nodes]);
 
+  // Edge positions Float32Array — rebuilt when link count changes
+  const edgePositionsRef = useRef<Float32Array>(new Float32Array(0));
+
+  // Build geometry with initial positions and colors
   const { geometry, linkSourceTargets, edgeColors } = useMemo(() => {
     const geo = new THREE.BufferGeometry();
     if (links.length === 0)
       return { geometry: geo, linkSourceTargets: [], edgeColors: [] };
 
-    const positions: number[] = [];
+    const positions = new Float32Array(links.length * 6);
     const colors: number[] = [];
     const sourceTargets: Array<{ source: string; target: string }> = [];
     const edgeColorList: THREE.Color[] = [];
+    const indexMap = nodeIndexMap.current;
+    const nodePositions = positionsRef.current;
 
-    for (const link of links) {
+    for (let i = 0; i < links.length; i++) {
+      const link = links[i];
       const source = nodeMap.get(link.source);
-      const target = nodeMap.get(link.target);
-      if (!source || !target) continue;
+      if (!source) continue;
 
       const color = new THREE.Color(getCategoryColor(source.category));
       edgeColorList.push(color);
 
-      positions.push(source.x, source.y, source.z);
-      positions.push(target.x, target.y, target.z);
+      // Initial positions from positionsRef
+      const si = indexMap.get(link.source);
+      const ti = indexMap.get(link.target);
+      if (si !== undefined && ti !== undefined) {
+        const offset = i * 6;
+        positions[offset] = nodePositions[si * 3];
+        positions[offset + 1] = nodePositions[si * 3 + 1];
+        positions[offset + 2] = nodePositions[si * 3 + 2];
+        positions[offset + 3] = nodePositions[ti * 3];
+        positions[offset + 4] = nodePositions[ti * 3 + 1];
+        positions[offset + 5] = nodePositions[ti * 3 + 2];
+      }
+
       colors.push(color.r, color.g, color.b, DEFAULT_ALPHA);
       colors.push(color.r, color.g, color.b, DEFAULT_ALPHA);
       sourceTargets.push({ source: link.source, target: link.target });
     }
+
+    edgePositionsRef.current = positions;
 
     geo.setAttribute(
       "position",
@@ -64,8 +93,9 @@ export function Edges({ nodes, links }: EdgesProps) {
       linkSourceTargets: sourceTargets,
       edgeColors: edgeColorList,
     };
-  }, [links, nodes, nodeMap]);
+  }, [links, nodes, nodeMap, nodeIndexMap, positionsRef]);
 
+  // Particle system
   const { particleGeometry, particleProgress } = useMemo(() => {
     const count = linkSourceTargets.length;
     const positions = new Float32Array(count * 3);
@@ -87,7 +117,7 @@ export function Edges({ nodes, links }: EdgesProps) {
     return { particleGeometry: geo, particleProgress: progress };
   }, [linkSourceTargets, edgeColors]);
 
-  // Mutate color attribute on focus change -- no geometry rebuild
+  // Focus-alpha: mutate color attribute on focus change
   useEffect(() => {
     const colorAttr = geometry.getAttribute(
       "color",
@@ -114,29 +144,62 @@ export function Edges({ nodes, links }: EdgesProps) {
     colorAttr.needsUpdate = true;
   }, [focusedNodeId, geometry, linkSourceTargets]);
 
+  // Frame loop: update edge positions + particle interpolation
   useFrame((_, delta) => {
+    // Update edge line positions when simulation is active
+    if (simulationActive.current) {
+      const positions = positionsRef.current;
+      const indexMap = nodeIndexMap.current;
+      const edgePositions = edgePositionsRef.current;
+
+      for (let i = 0; i < linkSourceTargets.length; i++) {
+        const si = indexMap.get(linkSourceTargets[i].source)!;
+        const ti = indexMap.get(linkSourceTargets[i].target)!;
+        const offset = i * 6;
+
+        edgePositions[offset] = positions[si * 3];
+        edgePositions[offset + 1] = positions[si * 3 + 1];
+        edgePositions[offset + 2] = positions[si * 3 + 2];
+        edgePositions[offset + 3] = positions[ti * 3];
+        edgePositions[offset + 4] = positions[ti * 3 + 1];
+        edgePositions[offset + 5] = positions[ti * 3 + 2];
+      }
+
+      const posAttr = geometry.getAttribute("position") as THREE.BufferAttribute;
+      posAttr.needsUpdate = true;
+    }
+
+    // Particle interpolation — always runs (particles animate even when settled)
     if (!particleRef.current || linkSourceTargets.length === 0) return;
-    const posAttr = particleGeometry.getAttribute(
+    const particlePosAttr = particleGeometry.getAttribute(
       "position",
     ) as THREE.BufferAttribute;
+    const positions = positionsRef.current;
+    const indexMap = nodeIndexMap.current;
 
     for (let i = 0; i < linkSourceTargets.length; i++) {
-      const { source, target } = linkSourceTargets[i];
-      const sNode = nodeMap.get(source);
-      const tNode = nodeMap.get(target);
-      if (!sNode || !tNode) continue;
+      const si = indexMap.get(linkSourceTargets[i].source);
+      const ti = indexMap.get(linkSourceTargets[i].target);
+      if (si === undefined || ti === undefined) continue;
 
       particleProgress[i] = (particleProgress[i] + delta * PARTICLE_SPEED) % 1;
       const t = particleProgress[i];
 
-      posAttr.setXYZ(
+      const sx = positions[si * 3];
+      const sy = positions[si * 3 + 1];
+      const sz = positions[si * 3 + 2];
+      const tx = positions[ti * 3];
+      const ty = positions[ti * 3 + 1];
+      const tz = positions[ti * 3 + 2];
+
+      particlePosAttr.setXYZ(
         i,
-        sNode.x + (tNode.x - sNode.x) * t,
-        sNode.y + (tNode.y - sNode.y) * t,
-        sNode.z + (tNode.z - sNode.z) * t,
+        sx + (tx - sx) * t,
+        sy + (ty - sy) * t,
+        sz + (tz - sz) * t,
       );
     }
-    posAttr.needsUpdate = true;
+    particlePosAttr.needsUpdate = true;
   });
 
   if (links.length === 0) return null;
