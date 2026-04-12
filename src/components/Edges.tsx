@@ -87,6 +87,12 @@ export function Edges({ nodes, links, positionsRef, nodeIndexMap }: EdgesProps) 
     colorAttr.needsUpdate = true;
   }, [focusedNodeId, geometry, linkSourceTargets]);
 
+  useEffect(() => {
+    if (lineRef.current) {
+      lineRef.current.layers.enable(1);
+    }
+  }, []);
+
   if (links.length === 0) return null;
 
   return (
