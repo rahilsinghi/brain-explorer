@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useMemo, useEffect, useCallback } from "react";
 import type { Simulation } from "d3-force-3d";
 import type { GraphNode, GraphLink, SimNode } from "@/lib/types";
 import { ALPHA_MIN } from "@/lib/types";
@@ -29,22 +29,30 @@ export function useSimulation(
   const simulationRef = useRef<Simulation<SimNode>>(null!);
   const simulationActive = useRef(true);
 
-  useEffect(() => {
-    if (nodes.length === 0) return;
-
-    const { simulation, simNodes, positionsRef: positions, nodeIndexMap } =
-      createForceSimulation(nodes, links);
-
-    simulationRef.current = simulation;
-    simNodesRef.current = simNodes;
-    positionsRef.current = positions;
-    nodeIndexMapRef.current = nodeIndexMap;
-    simulationActive.current = true;
-
-    return () => {
-      simulation.stop();
-    };
+  // Create simulation synchronously during render so refs are populated
+  // BEFORE children (Edges, InstancedNodes) run their useMemos.
+  // useEffect runs AFTER render — too late for children that read refs.
+  const simData = useMemo(() => {
+    if (nodes.length === 0) return null;
+    return createForceSimulation(nodes, links);
   }, [nodes, links]);
+
+  // Sync refs from useMemo result (runs during render, before children)
+  if (simData) {
+    simulationRef.current = simData.simulation;
+    simNodesRef.current = simData.simNodes;
+    positionsRef.current = simData.positionsRef;
+    nodeIndexMapRef.current = simData.nodeIndexMap;
+    simulationActive.current = true;
+  }
+
+  // Cleanup: stop simulation on unmount or when simData changes
+  useEffect(() => {
+    if (!simData) return;
+    return () => {
+      simData.simulation.stop();
+    };
+  }, [simData]);
 
   const tick = useCallback(() => {
     if (!simulationRef.current || !simulationActive.current) return;
