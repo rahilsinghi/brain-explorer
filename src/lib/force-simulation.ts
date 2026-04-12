@@ -36,19 +36,26 @@ export function createForceSimulation(
     fz: null,
   }));
 
+  // Force parameters tuned for 354 nodes in SCENE_RADIUS=50.
+  // Camera at z=120, fov=60 can see ~±70 units at origin.
+  // Weak charge (-3) prevents explosion while providing visible repulsion.
+  // Strong centering (0.3) contains the layout within camera frustum.
+  // High velocity damping (0.75) prevents overshoot during settling.
+  // Low initial alpha (0.15) keeps peak expansion under ~70 units.
   const simulation = forceSimulation(simNodes, 3)
     .force(
       "link",
       forceLink<SimNode, GraphLink>(links)
         .id((d: SimNode) => d.id)
         .strength(0.3)
-        .distance(15),
+        .distance(12),
     )
-    .force("charge", forceManyBody<SimNode>().strength(-30))
-    .force("center", forceCenter<SimNode>(0, 0, 0).strength(0.01))
+    .force("charge", forceManyBody<SimNode>().strength(-3))
+    .force("center", forceCenter<SimNode>(0, 0, 0).strength(0.3))
     .force("collide", forceCollide<SimNode>(2.0))
     .alphaDecay(0.02)
-    .velocityDecay(0.4);
+    .velocityDecay(0.75)
+    .alpha(0.15);
 
   // Critical: stop d3's internal RAF timer immediately.
   // We tick manually in useFrame to avoid double-ticking and jitter.
