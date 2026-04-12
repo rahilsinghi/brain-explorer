@@ -4,13 +4,24 @@ import { useRef, useMemo, useCallback } from "react";
 import { useFrame } from "@react-three/fiber";
 import type { ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
-import type { GraphNode } from "@/lib/types";
+import type { Simulation } from "d3-force-3d";
+import type { GraphNode, SimNode, DragState } from "@/lib/types";
+import { ALPHA_MIN } from "@/lib/types";
 import { getCategoryColor, getGlowColor, getNodeRadius } from "@/lib/categories";
 import { useGraphState } from "@/hooks/useGraphState";
 
 interface InstancedNodesProps {
   nodes: GraphNode[];
   neighborMap: Map<string, Set<string>>;
+  positionsRef: React.MutableRefObject<Float32Array>;
+  simulationRef: React.MutableRefObject<Simulation<SimNode>>;
+  simNodesRef: React.MutableRefObject<SimNode[]>;
+  simulationActive: React.MutableRefObject<boolean>;
+  tick: () => void;
+  restoreDecay: () => void;
+  dragState: React.MutableRefObject<DragState>;
+  draggedIndex: React.MutableRefObject<number | null>;
+  onNodePointerDown: (event: ThreeEvent<PointerEvent>) => void;
 }
 
 const tempObject = new THREE.Object3D();
@@ -41,14 +52,26 @@ function createGlowTexture(): THREE.Texture {
   return texture;
 }
 
-export function InstancedNodes({ nodes, neighborMap }: InstancedNodesProps) {
+export function InstancedNodes({
+  nodes,
+  neighborMap,
+  positionsRef,
+  simulationRef,
+  simNodesRef,
+  simulationActive,
+  tick,
+  restoreDecay,
+  dragState,
+  draggedIndex,
+  onNodePointerDown,
+}: InstancedNodesProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const glowRef = useRef<THREE.InstancedMesh>(null);
   const focusedNodeId = useGraphState((s) => s.focusedNodeId);
   const setHoveredNode = useGraphState((s) => s.setHoveredNode);
-  const setFocusedNode = useGraphState((s) => s.setFocusedNode);
 
-  const nodeIndexMap = useMemo(() => {
+  // Maps instanceId (number) → nodeId (string) for hover/click
+  const instanceToNodeId = useMemo(() => {
     const map = new Map<number, string>();
     nodes.forEach((n, i) => map.set(i, n.id));
     return map;
@@ -91,12 +114,12 @@ export function InstancedNodes({ nodes, neighborMap }: InstancedNodesProps) {
       if (pointerOutTimer.current) clearTimeout(pointerOutTimer.current);
       const instanceId = e.instanceId;
       if (instanceId !== undefined) {
-        const nodeId = nodeIndexMap.get(instanceId) ?? null;
+        const nodeId = instanceToNodeId.get(instanceId) ?? null;
         setHoveredNode(nodeId);
         document.body.style.cursor = "pointer";
       }
     },
-    [nodeIndexMap, setHoveredNode],
+    [instanceToNodeId, setHoveredNode],
   );
 
   const handlePointerOut = useCallback(() => {
@@ -106,23 +129,28 @@ export function InstancedNodes({ nodes, neighborMap }: InstancedNodesProps) {
     }, 50);
   }, [setHoveredNode]);
 
-  const handleClick = useCallback(
-    (e: ThreeEvent<MouseEvent>) => {
-      e.stopPropagation();
-      const instanceId = e.instanceId;
-      if (instanceId !== undefined) {
-        const nodeId = nodeIndexMap.get(instanceId) ?? null;
-        setFocusedNode(nodeId);
-      }
-    },
-    [nodeIndexMap, setFocusedNode],
-  );
-
   useFrame(({ clock }) => {
     if (!meshRef.current) return;
     const mesh = meshRef.current;
     const glow = glowRef.current;
     const time = clock.getElapsedTime();
+
+    // Tick simulation when active
+    if (simulationActive.current) {
+      tick();
+
+      // Check RELEASING → IDLE transition
+      if (
+        dragState.current === "RELEASING" &&
+        simulationRef.current.alpha() < ALPHA_MIN
+      ) {
+        dragState.current = "IDLE";
+        restoreDecay();
+        simulationActive.current = false;
+      }
+    }
+
+    const positions = positionsRef.current;
 
     for (let i = 0; i < nodes.length; i++) {
       const node = nodes[i];
@@ -130,9 +158,20 @@ export function InstancedNodes({ nodes, neighborMap }: InstancedNodesProps) {
 
       const pulse =
         1 + 0.05 * Math.sin(time * ((2 * Math.PI) / 3) + i * 0.7);
-      const scale = baseRadius * pulse;
+      let scale = baseRadius * pulse;
 
-      tempObject.position.set(node.x, node.y, node.z);
+      // 1.3x scale on dragged node
+      if (dragState.current === "DRAGGING" && i === draggedIndex.current) {
+        scale *= 1.3;
+      }
+
+      // Read position from shared Float32Array
+      const offset = i * 3;
+      tempObject.position.set(
+        positions[offset],
+        positions[offset + 1],
+        positions[offset + 2],
+      );
       tempObject.scale.set(scale, scale, scale);
       tempObject.updateMatrix();
       mesh.setMatrixAt(i, tempObject.matrix);
@@ -201,7 +240,7 @@ export function InstancedNodes({ nodes, neighborMap }: InstancedNodesProps) {
         args={[undefined, undefined, nodes.length]}
         onPointerMove={handlePointerMove}
         onPointerOut={handlePointerOut}
-        onClick={handleClick}
+        onPointerDown={onNodePointerDown}
       >
         <sphereGeometry args={[1, 16, 16]} />
         <meshBasicMaterial toneMapped={false} />
