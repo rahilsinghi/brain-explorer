@@ -2,7 +2,7 @@
 
 ## Overview
 
-Transition the Brain Explorer from a CPU-bound force-directed simulation to a high-performance, GPU-accelerated static spherical layout with premium visual aesthetics. Nodes become clear glass orbs via MeshTransmissionMaterial, edges become static color-gradient lines with additive blending, and the UI gets glassmorphic styling.
+Transition the Brain Explorer from a CPU-bound force-directed simulation to a high-performance, GPU-accelerated static spherical layout with premium visual aesthetics. Nodes become clear glass orbs via MeshTransmissionMaterial, edges become Great Arc curves with gradient coloring and additive blending, and the UI gets glassmorphic styling.
 
 **Approach:** Layered migration — each system is swapped independently in isolation, producing a working commit at each step.
 
@@ -10,8 +10,8 @@ Transition the Brain Explorer from a CPU-bound force-directed simulation to a hi
 
 1. Fibonacci sphere layout (replaces force simulation)
 2. MeshTransmissionMaterial nodes (replaces solid spheres + glow halos)
-3. Static gradient edges (replaces lines + particle system)
-4. Bloom retuning (adjust thresholds/intensity, remove fog)
+3. Great Arc gradient edges (replaces straight lines + particle system)
+4. Selective bloom (layer-based bloom, remove fog)
 5. Glassmorphic ArticlePanel + Tooltip
 6. Cosmetic drag with snap-back (replaces physics-based drag)
 
@@ -23,12 +23,20 @@ Transition the Brain Explorer from a CPU-bound force-directed simulation to a hi
 
 **New module:** `useSphereLayout` hook.
 
-### Algorithm
+### Algorithm — Continuous Golden Spiral
 
-1. Sort nodes by category.
-2. Assign each category a latitude band on a sphere of radius 35. Band widths are proportional to the number of nodes in that category — categories with more nodes get wider bands.
-3. Within each band, distribute nodes using a Fibonacci spiral. The golden angle (pi * (3 - sqrt(5))) ensures even angular spacing, preventing polar clumping.
-4. Convert (latitude, longitude) to Cartesian (x, y, z) and write positions once to a `Float32Array`.
+**Why not latitude bands:** Strict latitude banding creates harsh horizontal stripes across the sphere ("striped beachball" effect), breaking the organic aesthetic. Instead, a continuous Fibonacci spiral with category-sorted input produces natural, interlocking organic swirls.
+
+1. Sort the flat array of nodes by category (stable sort — preserves original order within each category).
+2. Map the sorted array onto a single continuous Fibonacci spiral across the entire sphere surface. For node at index `i` of `N` total nodes:
+   - `y = 1 - (2 * i / (N - 1))` — evenly spaced along the y-axis from +1 to -1
+   - `radius_at_y = sqrt(1 - y * y)` — radius of the sphere cross-section at height y
+   - `theta = golden_angle * i` where `golden_angle = pi * (3 - sqrt(5))`
+   - `x = cos(theta) * radius_at_y`
+   - `z = sin(theta) * radius_at_y`
+   - Scale all by `SPHERE_RADIUS` (35)
+3. Because nodes are sorted by category, each category naturally pools into a contiguous region of the spiral, creating organic swirl patterns rather than rigid slices.
+4. Write positions once to a `Float32Array`.
 
 ### Interface
 
@@ -88,6 +96,14 @@ MeshTransmissionMaterial renders an extra FBO pass. With 354 nodes this is the p
 - `resolution`: start at 256, increase if too blurry
 - If perf is unacceptable at minimum settings, fallback to `MeshPhysicalMaterial` with `transmission: 1, roughness: 0.1, ior: 1.5`
 
+### Depth Sorting for Transparency
+
+Transmission materials calculate refraction by reading what's behind them via an off-screen buffer. With hundreds of overlapping transparent instances, standard depth sorting fails — back instances render on top of front instances, causing visual popping during camera orbit.
+
+- Set `depthWrite: false` on the material
+- If popping artifacts persist: implement a camera-distance sort that re-orders the InstancedMesh matrix array every few frames during rotation. Sort by distance from each instance origin to `camera.position`, farthest-first (back-to-front painter's order)
+- Sort frequency: every 3-5 frames during active orbit (not every frame — sorting 354 entries is cheap but the matrix buffer upload isn't free)
+
 ### What Gets Deleted
 
 - Second InstancedMesh for glow halos (GLOW_SCALE, GLOW_OPACITY constants)
@@ -102,16 +118,42 @@ MeshTransmissionMaterial renders an extra FBO pass. With 354 nodes this is the p
 
 ---
 
-## 3. Static Gradient Edges
+## 3. Great Arc Gradient Edges
 
 **Replaces:** Dynamic BufferGeometry lines + animated particle system.
 
-### Appearance
+### Why Great Arcs, Not Straight Lines
 
-- Line segments with per-vertex colors. Source vertex gets source node's category color, target vertex gets target node's category color.
-- GPU linearly interpolates color between vertices — no custom shader needed for the gradient.
-- `AdditiveBlending` on the material — dense edge clusters glow brighter where lines overlap.
-- `vertexColors: true` on the line material.
+Straight lines between nodes on opposite sides of the sphere cut through the center, creating a dense, chaotic web in the interior. With additive blending and bloom, this central cluster blows out to pure white, destroying dark-theme contrast. Worse, the MeshTransmissionMaterial on nodes would refract this messy bright interior instead of the deep background.
+
+Great Arcs route edges along the sphere surface, keeping the interior hollow. Glass nodes refract the clean background and the glowing surface connections.
+
+### Geometry
+
+Each edge is a quadratic Bezier curve with its control point pushed outward from the sphere center:
+
+1. Given source position `A` and target position `B` on the sphere surface:
+2. Compute midpoint `M = (A + B) / 2`
+3. Push `M` outward along its normal from origin: `controlPoint = normalize(M) * SPHERE_RADIUS * ARC_LIFT` where `ARC_LIFT` ~1.2-1.4 (tune by eye — higher values = more curved)
+4. Tessellate the Bezier into `SEGMENTS_PER_EDGE` (~16) line segments
+5. Store as a continuous BufferGeometry with per-vertex colors
+
+### Color Gradient
+
+- Each vertex along the curve gets a color interpolated between source and target category colors based on its parametric `t` value (0 at source, 1 at target)
+- GPU interpolates between adjacent vertices — smooth gradient along the arc
+- `vertexColors: true` on the line material
+
+### Blending & Material
+
+- `AdditiveBlending` — overlapping arcs at dense connection hubs glow brighter
+- Base material opacity ~0.3-0.4 (tuned with selective bloom)
+
+### Computation
+
+- Arc geometry is computed **CPU-side on data load** (positions are static)
+- During drag: only the dragged node's connected edges are recomputed (handful of curves, trivially cheap)
+- No vertex shader needed — geometry changes are too infrequent to justify the complexity
 
 ### Focus Behavior (unchanged from current)
 
@@ -121,36 +163,55 @@ MeshTransmissionMaterial renders an extra FBO pass. With 354 nodes this is the p
 
 ### Position Source
 
-Positions still read from shared `positionsRef` via `nodeIndexMap`. Positions update during drag (only the dragged node's edges move).
+Positions read from shared `positionsRef` via `nodeIndexMap`. During drag, connected edges are retessellated from the dragged node's current position.
+
+### Constants
+
+- `ARC_LIFT = 1.3` (control point distance multiplier, tune by eye)
+- `SEGMENTS_PER_EDGE = 16` (tessellation resolution per curve)
 
 ### What Gets Deleted
 
 - Particle system: particle positions, speeds, interpolation in `useFrame`
 - `PARTICLE_SPEED` constant
 - Particle-related BufferAttributes
+- Straight-line edge geometry
 
 ### What Stays
 
-- BufferGeometry with dynamic position attributes
 - Focus alpha logic (FOCUS_ALPHA, DIMMED_ALPHA)
 - Edge geometry rebuild on `links.length` change
 
 ---
 
-## 4. Bloom Retuning
+## 4. Selective Bloom
 
-**Adjustments to existing `@react-three/postprocessing` bloom setup.**
+**Replaces:** Global bloom with layer-based selective bloom for independent control of edge glow vs node crispness.
 
-### Changes
+### Why Selective Bloom
 
-- Lower bloom threshold to ~0.2 — additive-blended edge intersections and transmission refractions pick up bloom.
-- Increase bloom intensity — dense edge clusters should read as visually "hot".
-- Adjust radius/smoothing — bloom bleeds softly without washing out glass nodes. Nodes stay crisp, edges glow.
+Cranking global bloom intensity to make edges glow also washes out the subtle Fresnel and tinting on glass nodes. Selective bloom via Three.js layers lets edges run "hot" while glass stays crisp and readable.
+
+### Implementation
+
+- **Layer 0 (default):** Glass nodes (InstancedMesh), starfield, background — receives subtle or no bloom
+- **Layer 1 (bloom layer):** Edge geometry — receives heavy bloom
+- Assign edge meshes to layer 1 via `mesh.layers.set(1)` or `mesh.layers.enable(1)`
+- Configure the bloom pass to target layer 1 using a selective bloom setup with `@react-three/postprocessing`
+
+### Bloom Parameters (edges)
+
+- Threshold: ~0.2 — additive-blended arc intersections pick up bloom
+- Intensity: high — dense connection hubs should glow visually "hot"
+- Radius: moderate — soft bleed without spreading to distant nodes
+
+### Other Changes
+
 - Remove `FogExp2` (currently density 0.003) — fog conflicts with transmission material and muddies the sphere. Bloom falloff provides sufficient atmospheric depth.
 
 ### Tuning Approach
 
-Numeric tweaks, not structural changes. Set initial values, refine by eye in the browser.
+Set initial values, refine by eye in the browser. The layer separation means edges and nodes can be tuned independently without compromise.
 
 ---
 
@@ -187,19 +248,39 @@ Numeric tweaks, not structural changes. Set initial values, refine by eye in the
 ### Behavior
 
 1. **Pointerdown + 5px threshold:** Node begins following pointer projection onto camera-perpendicular plane (same projection math as current `useDrag`).
-2. **During drag:** Node's position in `positionsRef` updated directly each frame. Neighbors are NOT affected.
-3. **Pointerup:** Animate node back to its sphere position (`restPositionsRef`) via lerp over ~300ms with ease-out.
+2. **During drag:** Node's position in `positionsRef` updated directly each frame. Connected edge arcs are retessellated from the new position. Neighbors are NOT affected.
+3. **Pointerup:** Animate node back to its sphere position (`restPositionsRef`) using a **damped spring simulation** (Hooke's law). See Spring Dynamics below.
 4. **OrbitControls:** Disabled during drag, re-enabled on release.
+
+### Spring Dynamics
+
+Instead of a time-based lerp (which feels rigid for a liquid/glass aesthetic), the snap-back uses a lightweight damped spring:
+
+```
+force = -stiffness * (position - restPosition)
+velocity += force * deltaTime
+velocity *= damping
+position += velocity * deltaTime
+```
+
+- `stiffness`: ~180 (snappy but not instant)
+- `damping`: ~0.85 per frame (highly damped — settles in ~300-400ms with a slight overshoot)
+- Spring runs per-axis (x, y, z independently) in `useFrame`
+- Spring is considered settled when `|velocity| < 0.01` and `|displacement| < 0.01` — stop updating to avoid CPU waste
+
+This produces a magnetic, liquid snap-back with subtle overshoot that matches the premium glass aesthetic.
 
 ### State Machine
 
-Simplified from current: `IDLE → DRAGGING → IDLE`
+Simplified from current: `IDLE → DRAGGING → SNAPPING → IDLE`
 
-The `RELEASING` state is removed — snap-back is a lerp animation within the IDLE state (or a brief transitional animation managed by a ref, not a state machine state).
+- `IDLE`: no drag active, no spring running
+- `DRAGGING`: pointer controls position, spring inactive
+- `SNAPPING`: spring simulation active, animating back to rest position. Transitions to IDLE when spring settles.
 
 ### What Gets Deleted
 
-- `RELEASING` state and alpha-threshold transition check
+- `RELEASING` state and alpha-threshold transition check (replaced by `SNAPPING`)
 - `reheat()`, `pin(fx/fy/fz)`, `unpin()`, `restoreDecay()`
 - `alphaDecay` manipulation
 - Elastic tether behavior (neighbor response)
@@ -226,15 +307,14 @@ The `RELEASING` state is removed — snap-back is a lerp animation within the ID
 ```typescript
 // Remove from types.ts
 interface SimNode { ... }
-type DragState = "IDLE" | "DRAGGING" | "RELEASING";
 const ALPHA_MIN = 0.001;
 ```
 
 ### Modified
 
 ```typescript
-// Simplified DragState
-type DragState = "IDLE" | "DRAGGING";
+// Updated DragState — RELEASING becomes SNAPPING (spring-based)
+type DragState = "IDLE" | "DRAGGING" | "SNAPPING";
 ```
 
 ---
@@ -287,6 +367,7 @@ No changes to the color palette. All 9 categories retain their current colors fr
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
 | MeshTransmissionMaterial tanks FPS with 354 nodes | High | High | Layer 2 lands early. Fallback: MeshPhysicalMaterial with transmission. Tuning knobs: samples (1-6), resolution (128-1024). |
-| Glass nodes are too subtle / invisible against dark background | Medium | Medium | Tune emissive intensity, Fresnel strength, and category color tint. Bloom will also help visibility. |
-| Additive blending on edges produces unreadable white-out in dense clusters | Medium | Low | Reduce base edge opacity. Tune bloom threshold to control glow intensity. |
-| Snap-back drag feels cheap without physics | Low | Low | Tune ease curve and duration. Add subtle scale bounce on snap. |
+| Transparent instance depth-sorting artifacts (visual popping during orbit) | High | Medium | Set `depthWrite: false`. If artifacts persist, implement back-to-front camera-distance sort every 3-5 frames. |
+| Glass nodes are too subtle / invisible against dark background | Medium | Medium | Tune emissive intensity, Fresnel strength, and category color tint. Selective bloom keeps nodes crisp. |
+| Additive blending on edges produces white-out in dense clusters | Low | Low | Great Arcs route edges along surface, keeping interior hollow. Selective bloom targets edges only. Tune base opacity. |
+| Snap-back drag feels cheap without physics | Low | Low | Damped spring simulation provides tactile overshoot. Tune stiffness/damping constants. |
