@@ -2,6 +2,7 @@
 
 import { useRef, useMemo, useCallback } from "react";
 import { useFrame } from "@react-three/fiber";
+import { MeshTransmissionMaterial } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
 import type { GraphNode } from "@/lib/types";
@@ -126,8 +127,21 @@ export function InstancedNodes({
       onPointerMove={handlePointerMove}
       onPointerOut={handlePointerOut}
     >
-      <sphereGeometry args={[1, 16, 16]} />
-      <meshBasicMaterial toneMapped={false} />
+      <sphereGeometry args={[1, 32, 32]} />
+      <MeshTransmissionMaterial
+        samples={1}
+        resolution={256}
+        transmission={1}
+        roughness={0.1}
+        ior={1.5}
+        thickness={0.5}
+        chromaticAberration={0.02}
+        anisotropy={0.1}
+        distortion={0}
+        distortionScale={0}
+        toneMapped={false}
+        depthWrite={false}
+      />
     </instancedMesh>
   );
 }
