@@ -5,7 +5,7 @@ import { useFrame } from "@react-three/fiber";
 import { MeshTransmissionMaterial } from "@react-three/drei";
 import type { ThreeEvent } from "@react-three/fiber";
 import * as THREE from "three";
-import type { GraphNode } from "@/lib/types";
+import type { GraphNode, DragState } from "@/lib/types";
 import { getCategoryColor, getNodeRadius } from "@/lib/categories";
 import { useGraphState } from "@/hooks/useGraphState";
 
@@ -14,6 +14,9 @@ interface InstancedNodesProps {
   neighborMap: Map<string, Set<string>>;
   positionsRef: React.MutableRefObject<Float32Array>;
   nodeIndexMap: React.MutableRefObject<Map<string, number>>;
+  onNodePointerDown?: (event: ThreeEvent<PointerEvent>) => void;
+  dragState?: React.MutableRefObject<DragState>;
+  draggedIndex?: React.MutableRefObject<number | null>;
 }
 
 const tempObject = new THREE.Object3D();
@@ -24,6 +27,9 @@ export function InstancedNodes({
   neighborMap,
   positionsRef,
   nodeIndexMap,
+  onNodePointerDown,
+  dragState,
+  draggedIndex,
 }: InstancedNodesProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
   const focusedNodeId = useGraphState((s) => s.focusedNodeId);
@@ -96,7 +102,11 @@ export function InstancedNodes({
     for (let i = 0; i < count; i++) {
       const baseRadius = radii[i] ?? 0.5;
       const pulse = 1 + 0.05 * Math.sin(time * ((2 * Math.PI) / 3) + i * 0.7);
-      const scale = baseRadius * pulse;
+      let scale = baseRadius * pulse;
+
+      if (dragState?.current === "DRAGGING" && i === draggedIndex?.current) {
+        scale *= 1.3;
+      }
 
       const offset = i * 3;
       tempObject.position.set(positions[offset], positions[offset + 1], positions[offset + 2]);
@@ -124,6 +134,7 @@ export function InstancedNodes({
     <instancedMesh
       ref={meshRef}
       args={[undefined, undefined, nodes.length]}
+      onPointerDown={onNodePointerDown}
       onPointerMove={handlePointerMove}
       onPointerOut={handlePointerOut}
     >
