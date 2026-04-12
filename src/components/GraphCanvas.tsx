@@ -28,9 +28,9 @@ export function GraphCanvas({ children, onPointerMissed }: GraphCanvasProps) {
 
       <EffectComposer>
         <Bloom
-          intensity={2.5}
-          luminanceThreshold={0.2}
-          luminanceSmoothing={0.4}
+          intensity={0.6}
+          luminanceThreshold={0.8}
+          luminanceSmoothing={0.3}
           mipmapBlur
         />
       </EffectComposer>

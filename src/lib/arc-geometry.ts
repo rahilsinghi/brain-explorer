@@ -52,7 +52,7 @@ export function buildArcGeometryArrays(
   linkSourceTargets: Array<{ source: string; target: string }>;
 } {
   const DEFAULT_COLOR = { r: 0.886, g: 0.910, b: 0.941 };
-  const DEFAULT_ALPHA = 0.4;
+  const DEFAULT_ALPHA = 0.15;
 
   const validLinks: Array<{
     source: string;

@@ -14,9 +14,9 @@ interface EdgesProps {
   nodeIndexMap: React.MutableRefObject<Map<string, number>>;
 }
 
-const FOCUS_ALPHA = 0.8;
-const DIMMED_ALPHA = 0.05;
-const DEFAULT_ALPHA = 0.4;
+const FOCUS_ALPHA = 0.5;
+const DIMMED_ALPHA = 0.03;
+const DEFAULT_ALPHA = 0.15;
 const SPHERE_RADIUS = 35;
 const ARC_LIFT = 1.3;
 const SEGMENTS_PER_EDGE = 16;
