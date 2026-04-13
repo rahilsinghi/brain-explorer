@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizePositions, buildNeighborMap } from "./graph-data";
+import { normalizePositions, buildNeighborMap, filterByLayer } from "./graph-data";
 import type { GraphNode, GraphLink } from "./types";
 
 function makeNode(overrides: Partial<GraphNode> = {}): GraphNode {
@@ -65,5 +65,72 @@ describe("buildNeighborMap", () => {
   it("returns empty map for no links", () => {
     const map = buildNeighborMap([]);
     expect(map.size).toBe(0);
+  });
+});
+
+const wikiNode = (id: string): GraphNode => ({
+  id,
+  title: id,
+  tags: [],
+  category: "projects",
+  source_type: "wiki",
+  created_at: "",
+  connection_count: 1,
+  x: 0,
+  y: 0,
+  z: 0,
+  layer: "wiki",
+});
+
+const codeNode = (id: string, repo = "karen"): GraphNode => ({
+  id,
+  title: id,
+  tags: [],
+  category: repo,
+  source_type: "graphify",
+  created_at: "",
+  connection_count: 1,
+  x: 0,
+  y: 0,
+  z: 0,
+  layer: "code",
+  repo,
+});
+
+describe("filterByLayer", () => {
+  const nodes = [wikiNode("w1"), wikiNode("w2"), codeNode("c1"), codeNode("c2")];
+  const links: GraphLink[] = [
+    { source: "w1", target: "w2" },
+    { source: "c1", target: "c2" },
+    { source: "w1", target: "c1", relation: "cross_layer" },
+  ];
+
+  it("wiki mode returns only wiki nodes and their links", () => {
+    const result = filterByLayer(nodes, links, "wiki", new Set());
+    expect(result.nodes.map((n) => n.id)).toEqual(["w1", "w2"]);
+    expect(result.links).toHaveLength(1);
+    expect(result.links[0].source).toBe("w1");
+  });
+
+  it("code mode returns only code nodes", () => {
+    const result = filterByLayer(nodes, links, "code", new Set());
+    expect(result.nodes.map((n) => n.id)).toEqual(["c1", "c2"]);
+  });
+
+  it("combined mode returns all nodes", () => {
+    const result = filterByLayer(nodes, links, "combined", new Set());
+    expect(result.nodes).toHaveLength(4);
+    expect(result.links).toHaveLength(3);
+  });
+
+  it("wiki mode includes drill-in code nodes", () => {
+    const result = filterByLayer(nodes, links, "wiki", new Set(["c1"]));
+    expect(result.nodes.map((n) => n.id)).toEqual(["w1", "w2", "c1"]);
+  });
+
+  it("nodes without layer field default to wiki", () => {
+    const legacy = [{ ...wikiNode("old"), layer: undefined }] as GraphNode[];
+    const result = filterByLayer(legacy, [], "wiki", new Set());
+    expect(result.nodes).toHaveLength(1);
   });
 });

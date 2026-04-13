@@ -1,4 +1,4 @@
-import type { GraphNode, GraphLink } from "./types";
+import type { GraphNode, GraphLink, LayerMode } from "./types";
 
 export function normalizePositions(
   nodes: GraphNode[],
@@ -52,4 +52,31 @@ export function buildNeighborMap(
     map.get(link.target)!.add(link.source);
   }
   return map;
+}
+
+export function filterByLayer(
+  nodes: GraphNode[],
+  links: GraphLink[],
+  layer: LayerMode,
+  drillInNodeIds: Set<string>,
+): { nodes: GraphNode[]; links: GraphLink[] } {
+  let filteredNodes: GraphNode[];
+
+  if (layer === "combined") {
+    filteredNodes = nodes;
+  } else if (layer === "code") {
+    filteredNodes = nodes.filter((n) => n.layer === "code");
+  } else {
+    // wiki mode: wiki nodes (or legacy nodes without layer) + drill-in code nodes
+    filteredNodes = nodes.filter(
+      (n) => n.layer !== "code" || drillInNodeIds.has(n.id),
+    );
+  }
+
+  const visibleIds = new Set(filteredNodes.map((n) => n.id));
+  const filteredLinks = links.filter(
+    (l) => visibleIds.has(l.source) && visibleIds.has(l.target),
+  );
+
+  return { nodes: filteredNodes, links: filteredLinks };
 }
