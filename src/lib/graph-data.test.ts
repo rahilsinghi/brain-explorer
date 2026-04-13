@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { normalizePositions, buildNeighborMap, filterByLayer } from "./graph-data";
+import {
+  normalizePositions,
+  buildNeighborMap,
+  filterByLayer,
+  filterByNeighborhood,
+} from "./graph-data";
 import type { GraphNode, GraphLink } from "./types";
 
 function makeNode(overrides: Partial<GraphNode> = {}): GraphNode {
@@ -132,5 +137,79 @@ describe("filterByLayer", () => {
     const legacy = [{ ...wikiNode("old"), layer: undefined }] as GraphNode[];
     const result = filterByLayer(legacy, [], "wiki", new Set());
     expect(result.nodes).toHaveLength(1);
+  });
+});
+
+function makeRepoNode(id: string, repo?: string): GraphNode {
+  return {
+    id,
+    title: id,
+    tags: [],
+    category: "projects",
+    source_type: "test",
+    created_at: "",
+    connection_count: 1,
+    x: 0,
+    y: 0,
+    z: 0,
+    repo,
+  };
+}
+
+describe("filterByNeighborhood", () => {
+  const nodes: GraphNode[] = [
+    makeRepoNode("a", "myrepo"),
+    makeRepoNode("b", "myrepo"),
+    makeRepoNode("c"),
+    makeRepoNode("d"),
+    makeRepoNode("e"),
+  ];
+
+  const links: GraphLink[] = [
+    { source: "a", target: "b" },
+    { source: "b", target: "c" },
+    { source: "c", target: "d" },
+  ];
+
+  it("filters to project seed nodes at depth 0", () => {
+    const result = filterByNeighborhood(nodes, links, "project:myrepo", 0);
+    expect(result.nodes.map((n) => n.id).sort()).toEqual(["a", "b"]);
+    expect(result.links.length).toBe(1);
+  });
+
+  it("includes depth-1 neighbors", () => {
+    const result = filterByNeighborhood(nodes, links, "project:myrepo", 1);
+    expect(result.nodes.map((n) => n.id).sort()).toEqual(["a", "b", "c"]);
+    expect(result.links.length).toBe(2);
+  });
+
+  it("includes depth-2 neighbors", () => {
+    const result = filterByNeighborhood(nodes, links, "project:myrepo", 2);
+    expect(result.nodes.map((n) => n.id).sort()).toEqual(["a", "b", "c", "d"]);
+    expect(result.links.length).toBe(3);
+  });
+
+  it("excludes disconnected nodes", () => {
+    const result = filterByNeighborhood(nodes, links, "project:myrepo", 10);
+    expect(result.nodes.map((n) => n.id)).not.toContain("e");
+  });
+
+  it("filters edges to only valid endpoints", () => {
+    const result = filterByNeighborhood(nodes, links, "project:myrepo", 0);
+    for (const link of result.links) {
+      const ids = result.nodes.map((n) => n.id);
+      expect(ids).toContain(link.source);
+      expect(ids).toContain(link.target);
+    }
+  });
+
+  it("returns all nodes when focus is unknown", () => {
+    const result = filterByNeighborhood(nodes, links, "project:nonexistent", 2);
+    expect(result.nodes.length).toBe(nodes.length);
+  });
+
+  it("handles direct node ID focus", () => {
+    const result = filterByNeighborhood(nodes, links, "c", 1);
+    expect(result.nodes.map((n) => n.id).sort()).toEqual(["b", "c", "d"]);
   });
 });

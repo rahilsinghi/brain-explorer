@@ -14,10 +14,11 @@ import { useGraphState } from "@/hooks/useGraphState";
 import { lastFocusClickTime } from "@/hooks/useDrag";
 import { useDrillIn } from "@/hooks/useDrillIn";
 import { SphereConsumer } from "@/components/SphereConsumer";
-import { readLayerParam, readFocusParam, updateUrlParams } from "@/lib/url-params";
+import { readLayerParam, readFocusParam, readDepthParam, updateUrlParams } from "@/lib/url-params";
+import { filterByNeighborhood, buildNeighborMap } from "@/lib/graph-data";
 
 export function GraphView() {
-  const { nodes, links, allNodes, neighborMap, generatedAt, loading, error, hasCodeNodes } =
+  const { nodes, links, allNodes, generatedAt, loading, error, hasCodeNodes } =
     useGraphData();
   const clearFocus = useGraphState((s) => s.clearFocus);
   const setFocusedNode = useGraphState((s) => s.setFocusedNode);
@@ -90,13 +91,28 @@ export function GraphView() {
     });
   }, [focusedNodeId]);
 
+  const { displayNodes, displayLinks } = useMemo(() => {
+    const focusParam = readFocusParam();
+    if (focusParam && focusParam.startsWith("project:")) {
+      const depth = readDepthParam();
+      const neighborhood = filterByNeighborhood(nodes, links, focusParam, depth);
+      return { displayNodes: neighborhood.nodes, displayLinks: neighborhood.links };
+    }
+    return { displayNodes: nodes, displayLinks: links };
+  }, [nodes, links]);
+
+  const displayNeighborMap = useMemo(
+    () => buildNeighborMap(displayLinks),
+    [displayLinks],
+  );
+
   const wikiCount = useMemo(
-    () => nodes.filter((n) => n.layer !== "code").length,
-    [nodes],
+    () => displayNodes.filter((n) => n.layer !== "code").length,
+    [displayNodes],
   );
   const codeCount = useMemo(
-    () => nodes.filter((n) => n.layer === "code").length,
-    [nodes],
+    () => displayNodes.filter((n) => n.layer === "code").length,
+    [displayNodes],
   );
 
   if (loading) {
@@ -120,22 +136,22 @@ export function GraphView() {
   return (
     <main className="h-screen w-screen relative">
       <GraphCanvas onPointerMissed={handlePointerMissed}>
-        <SphereConsumer nodes={nodes} links={links} neighborMap={neighborMap} />
-        <CameraController nodes={nodes} />
-        <Tooltip nodes={nodes} neighborMap={neighborMap} />
+        <SphereConsumer nodes={displayNodes} links={displayLinks} neighborMap={displayNeighborMap} />
+        <CameraController nodes={displayNodes} />
+        <Tooltip nodes={displayNodes} neighborMap={displayNeighborMap} />
       </GraphCanvas>
 
       {hasCodeNodes && <LayerToggle />}
-      <CommandPalette nodes={nodes} />
+      <CommandPalette nodes={displayNodes} />
       <ArticlePanel
-        nodes={nodes}
-        neighborMap={neighborMap}
+        nodes={displayNodes}
+        neighborMap={displayNeighborMap}
         allNodes={allNodes}
         onDrillIn={drillIn}
         onExitDrillIn={exitDrillIn}
       />
       <GraphMeta
-        nodeCount={nodes.length}
+        nodeCount={displayNodes.length}
         generatedAt={generatedAt}
         wikiCount={wikiCount}
         codeCount={codeCount}

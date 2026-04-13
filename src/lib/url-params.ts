@@ -17,6 +17,15 @@ export function readFocusParam(): string | null {
   return raw ? decodeURIComponent(raw) : null;
 }
 
+export function readDepthParam(): number {
+  if (typeof window === "undefined") return 2;
+  const params = new URLSearchParams(window.location.search);
+  const raw = params.get("depth");
+  if (raw === null) return 2;
+  const num = parseInt(raw, 10);
+  return Number.isNaN(num) || num < 0 ? 2 : num;
+}
+
 export function updateUrlParams(updates: Record<string, string | null>): void {
   const url = new URL(window.location.href);
   for (const [key, value] of Object.entries(updates)) {

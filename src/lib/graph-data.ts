@@ -80,3 +80,50 @@ export function filterByLayer(
 
   return { nodes: filteredNodes, links: filteredLinks };
 }
+
+export function filterByNeighborhood(
+  nodes: GraphNode[],
+  links: GraphLink[],
+  focus: string,
+  depth: number,
+): { nodes: GraphNode[]; links: GraphLink[] } {
+  let seedIds: Set<string>;
+
+  if (focus.startsWith("project:")) {
+    const projectName = focus.slice("project:".length);
+    seedIds = new Set(
+      nodes.filter((n) => n.repo === projectName).map((n) => n.id),
+    );
+  } else {
+    seedIds = new Set(nodes.filter((n) => n.id === focus).map((n) => n.id));
+  }
+
+  if (seedIds.size === 0) return { nodes, links };
+
+  const neighborMap = buildNeighborMap(links);
+  const visited = new Set<string>(seedIds);
+  let frontier = new Set<string>(seedIds);
+
+  for (let d = 0; d < depth; d++) {
+    const nextFrontier = new Set<string>();
+    for (const nodeId of frontier) {
+      const neighbors = neighborMap.get(nodeId);
+      if (!neighbors) continue;
+      for (const neighbor of neighbors) {
+        if (!visited.has(neighbor)) {
+          visited.add(neighbor);
+          nextFrontier.add(neighbor);
+        }
+      }
+    }
+    frontier = nextFrontier;
+    if (frontier.size === 0) break;
+  }
+
+  const filteredNodes = nodes.filter((n) => visited.has(n.id));
+  const filteredLinks = links.filter(
+    (l) => visited.has(l.source) && visited.has(l.target),
+  );
+
+  return { nodes: filteredNodes, links: filteredLinks };
+}
