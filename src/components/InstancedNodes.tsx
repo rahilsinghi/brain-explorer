@@ -38,35 +38,28 @@ export function InstancedNodes({
   // R3F shared buffer pattern: nodeIndexMap is a ref populated in the same render pass.
   // Manual deps include `nodes` to recompute when graph data changes.
   /* eslint-disable react-hooks/exhaustive-deps */
-  const instanceToNodeId = useMemo(() => {
-    const map = new Map<number, string>();
-    const idxMap = nodeIndexMap.current;
-    for (const [nodeId, idx] of idxMap) {
-      map.set(idx, nodeId);
-    }
-    return map;
+  const { localToGlobal, instanceToNodeId } = useMemo(() => {
+    const l2g = new Map<number, number>();
+    const i2n = new Map<number, string>();
+    const globalMap = nodeIndexMap.current;
+    nodes.forEach((node, localIdx) => {
+      const globalIdx = globalMap.get(node.id);
+      if (globalIdx !== undefined) {
+        l2g.set(localIdx, globalIdx);
+        i2n.set(localIdx, node.id);
+      }
+    });
+    return { localToGlobal: l2g, instanceToNodeId: i2n };
   }, [nodeIndexMap, nodes]);
   /* eslint-enable react-hooks/exhaustive-deps */
 
   const radii = useMemo(() => {
-    const idxMap = nodeIndexMap.current;
-    const r = new Array<number>(nodes.length);
-    for (const node of nodes) {
-      const idx = idxMap.get(node.id);
-      if (idx !== undefined) r[idx] = getNodeRadius(node.connection_count);
-    }
-    return r;
-  }, [nodes, nodeIndexMap]);
+    return nodes.map((n) => getNodeRadius(n.connection_count));
+  }, [nodes]);
 
   const baseColors = useMemo(() => {
-    const idxMap = nodeIndexMap.current;
-    const colors = new Array<THREE.Color>(nodes.length);
-    for (const node of nodes) {
-      const idx = idxMap.get(node.id);
-      if (idx !== undefined) colors[idx] = new THREE.Color(getCategoryColor(node.category));
-    }
-    return colors;
-  }, [nodes, nodeIndexMap]);
+    return nodes.map((n) => new THREE.Color(getCategoryColor(n.category)));
+  }, [nodes]);
 
   const focusNeighbors = useMemo(() => {
     if (!focusedNodeId) return null;
@@ -89,6 +82,23 @@ export function InstancedNodes({
     [instanceToNodeId, setHoveredNode],
   );
 
+  const handlePointerDown = useCallback(
+    (e: ThreeEvent<PointerEvent>) => {
+      const localId = e.instanceId;
+      if (localId !== undefined) {
+        const globalId = localToGlobal.get(localId);
+        if (globalId !== undefined) {
+          const syntheticEvent = {
+            ...e,
+            instanceId: globalId,
+          } as ThreeEvent<PointerEvent>;
+          onNodePointerDown?.(syntheticEvent);
+        }
+      }
+    },
+    [localToGlobal, onNodePointerDown],
+  );
+
   const handlePointerOut = useCallback(() => {
     pointerOutTimer.current = setTimeout(() => {
       setHoveredNode(null);
@@ -101,33 +111,35 @@ export function InstancedNodes({
     const mesh = meshRef.current;
     const time = clock.getElapsedTime();
     const positions = positionsRef.current;
-    const count = positions.length / 3;
 
-    for (let i = 0; i < count; i++) {
-      const baseRadius = radii[i] ?? 0.5;
-      const pulse = 1 + 0.05 * Math.sin(time * ((2 * Math.PI) / 3) + i * 0.7);
+    for (let localIdx = 0; localIdx < nodes.length; localIdx++) {
+      const globalIdx = localToGlobal.get(localIdx);
+      if (globalIdx === undefined) continue;
+
+      const baseRadius = radii[localIdx] ?? 0.5;
+      const pulse = 1 + 0.05 * Math.sin(time * ((2 * Math.PI) / 3) + localIdx * 0.7);
       let scale = baseRadius * pulse;
 
-      if (dragState?.current === "DRAGGING" && i === draggedIndex?.current) {
+      if (dragState?.current === "DRAGGING" && globalIdx === draggedIndex?.current) {
         scale *= 1.3;
       }
 
-      const offset = i * 3;
+      const offset = globalIdx * 3;
       tempObject.position.set(positions[offset], positions[offset + 1], positions[offset + 2]);
       tempObject.scale.set(scale, scale, scale);
       tempObject.updateMatrix();
-      mesh.setMatrixAt(i, tempObject.matrix);
+      mesh.setMatrixAt(localIdx, tempObject.matrix);
 
-      const nodeId = instanceToNodeId.get(i);
+      const nodeId = instanceToNodeId.get(localIdx);
       if (focusNeighbors && nodeId) {
         const isFocused = nodeId === focusedNodeId;
         const isNeighbor = focusNeighbors.has(nodeId);
         const opacity = isFocused || isNeighbor ? 1.0 : 0.1;
-        tempColor.copy(baseColors[i]).multiplyScalar(opacity);
+        tempColor.copy(baseColors[localIdx]).multiplyScalar(opacity);
       } else {
-        tempColor.copy(baseColors[i]);
+        tempColor.copy(baseColors[localIdx]);
       }
-      mesh.setColorAt(i, tempColor);
+      mesh.setColorAt(localIdx, tempColor);
     }
 
     mesh.instanceMatrix.needsUpdate = true;
@@ -138,7 +150,7 @@ export function InstancedNodes({
     <instancedMesh
       ref={meshRef}
       args={[undefined, undefined, nodes.length]}
-      onPointerDown={onNodePointerDown}
+      onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerOut={handlePointerOut}
     >
