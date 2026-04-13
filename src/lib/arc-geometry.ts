@@ -1,5 +1,8 @@
 import type { GraphLink } from "./types";
 
+const CROSS_LAYER_COLOR = { r: 1.0, g: 1.0, b: 1.0 };
+const CROSS_LAYER_ALPHA = 0.08;
+
 interface Vec3 {
   x: number;
   y: number;
@@ -59,13 +62,14 @@ export function buildArcGeometryArrays(
     target: string;
     si: number;
     ti: number;
+    relation?: string;
   }> = [];
 
   for (const link of links) {
     const si = nodeIndexMap.get(link.source);
     const ti = nodeIndexMap.get(link.target);
     if (si === undefined || ti === undefined) continue;
-    validLinks.push({ source: link.source, target: link.target, si, ti });
+    validLinks.push({ source: link.source, target: link.target, si, ti, relation: link.relation });
   }
 
   const vertexCount = validLinks.length * segments * 2;
@@ -75,7 +79,7 @@ export function buildArcGeometryArrays(
 
   let vertexOffset = 0;
 
-  for (const { source, target, si, ti } of validLinks) {
+  for (const { source, target, si, ti, relation } of validLinks) {
     const a: Vec3 = {
       x: nodePositions[si * 3],
       y: nodePositions[si * 3 + 1],
@@ -90,8 +94,11 @@ export function buildArcGeometryArrays(
     const points = tessellateArc(a, b, sphereRadius, arcLift, segments);
     const srcCat = nodeCategories.get(source) ?? "";
     const tgtCat = nodeCategories.get(target) ?? "";
-    const srcColor = categoryColors.get(srcCat) ?? DEFAULT_COLOR;
-    const tgtColor = categoryColors.get(tgtCat) ?? DEFAULT_COLOR;
+
+    const isCrossLayer = relation === "cross_layer";
+    const srcCol = isCrossLayer ? CROSS_LAYER_COLOR : (categoryColors.get(srcCat) ?? DEFAULT_COLOR);
+    const tgtCol = isCrossLayer ? CROSS_LAYER_COLOR : (categoryColors.get(tgtCat) ?? DEFAULT_COLOR);
+    const edgeAlpha = isCrossLayer ? CROSS_LAYER_ALPHA : DEFAULT_ALPHA;
 
     for (let s = 0; s < segments; s++) {
       const p0 = points[s];
@@ -102,19 +109,19 @@ export function buildArcGeometryArrays(
       positions[vertexOffset * 3] = p0.x;
       positions[vertexOffset * 3 + 1] = p0.y;
       positions[vertexOffset * 3 + 2] = p0.z;
-      colors[vertexOffset * 4] = srcColor.r + (tgtColor.r - srcColor.r) * t0;
-      colors[vertexOffset * 4 + 1] = srcColor.g + (tgtColor.g - srcColor.g) * t0;
-      colors[vertexOffset * 4 + 2] = srcColor.b + (tgtColor.b - srcColor.b) * t0;
-      colors[vertexOffset * 4 + 3] = DEFAULT_ALPHA;
+      colors[vertexOffset * 4] = srcCol.r + (tgtCol.r - srcCol.r) * t0;
+      colors[vertexOffset * 4 + 1] = srcCol.g + (tgtCol.g - srcCol.g) * t0;
+      colors[vertexOffset * 4 + 2] = srcCol.b + (tgtCol.b - srcCol.b) * t0;
+      colors[vertexOffset * 4 + 3] = edgeAlpha;
       vertexOffset++;
 
       positions[vertexOffset * 3] = p1.x;
       positions[vertexOffset * 3 + 1] = p1.y;
       positions[vertexOffset * 3 + 2] = p1.z;
-      colors[vertexOffset * 4] = srcColor.r + (tgtColor.r - srcColor.r) * t1;
-      colors[vertexOffset * 4 + 1] = srcColor.g + (tgtColor.g - srcColor.g) * t1;
-      colors[vertexOffset * 4 + 2] = srcColor.b + (tgtColor.b - srcColor.b) * t1;
-      colors[vertexOffset * 4 + 3] = DEFAULT_ALPHA;
+      colors[vertexOffset * 4] = srcCol.r + (tgtCol.r - srcCol.r) * t1;
+      colors[vertexOffset * 4 + 1] = srcCol.g + (tgtCol.g - srcCol.g) * t1;
+      colors[vertexOffset * 4 + 2] = srcCol.b + (tgtCol.b - srcCol.b) * t1;
+      colors[vertexOffset * 4 + 3] = edgeAlpha;
       vertexOffset++;
     }
 
