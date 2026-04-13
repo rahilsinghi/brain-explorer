@@ -9,12 +9,27 @@ export interface GraphNode {
   x: number;
   y: number;
   z: number;
+  // --- fusion fields (all optional for backward compat) ---
+  layer?: "wiki" | "code";
+  file_type?: "code" | "document" | "rationale";
+  source_file?: string;
+  source_location?: string;
+  community?: number;
+  is_god_node?: boolean;
+  confidential?: boolean;
+  repo?: string;
 }
 
 export interface GraphLink {
   source: string;
   target: string;
+  // --- fusion fields ---
+  relation?: string;
+  confidence?: "EXTRACTED" | "INFERRED" | "AMBIGUOUS";
+  confidence_score?: number;
 }
+
+export type LayerMode = "wiki" | "code" | "combined";
 
 export type DragState = "IDLE" | "DRAGGING" | "SNAPPING";
 
