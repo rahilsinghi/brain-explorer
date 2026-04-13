@@ -12,6 +12,9 @@ import { useGraphState } from "@/hooks/useGraphState";
 interface ArticlePanelProps {
   nodes: GraphNode[];
   neighborMap: Map<string, Set<string>>;
+  allNodes: GraphNode[];
+  onDrillIn?: (repoName: string) => void;
+  onExitDrillIn?: () => void;
 }
 
 function CollapsibleSection({
@@ -142,9 +145,10 @@ function MetaRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function ArticlePanel({ nodes, neighborMap }: ArticlePanelProps) {
+export function ArticlePanel({ nodes, neighborMap, allNodes, onDrillIn, onExitDrillIn }: ArticlePanelProps) {
   const focusedNodeId = useGraphState((s) => s.focusedNodeId);
   const clearFocus = useGraphState((s) => s.clearFocus);
+  const drillInRepo = useGraphState((s) => s.drillInRepo);
   const [articleContent, setArticleContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -155,6 +159,21 @@ export function ArticlePanel({ nodes, neighborMap }: ArticlePanelProps) {
   }, [nodes]);
 
   const focusedNode = focusedNodeId ? nodeMap.get(focusedNodeId) : null;
+
+  // Extract repo name from wiki node ID: "wiki://projects/karen.md" -> "karen"
+  // Or legacy: "projects/karen.md" -> "karen"
+  const repoName = useMemo(() => {
+    if (!focusedNode) return null;
+    if (focusedNode.layer === "code") return null;
+    const id = focusedNode.id;
+    const match = id.match(/projects\/([^/.]+)\.md$/);
+    return match?.[1] ?? null;
+  }, [focusedNode]);
+
+  const hasCodeNodes = useMemo(() => {
+    if (!repoName) return false;
+    return allNodes.some((n) => n.layer === "code" && n.repo === repoName);
+  }, [repoName, allNodes]);
 
   useEffect(() => {
     if (!focusedNodeId) {
@@ -499,6 +518,33 @@ export function ArticlePanel({ nodes, neighborMap }: ArticlePanelProps) {
                 </code>
               </CollapsibleSection>
             </>
+          )}
+
+          {hasCodeNodes && repoName && !drillInRepo && (
+            <button
+              onClick={() => onDrillIn?.(repoName)}
+              className="w-full mt-3 py-2 px-4 rounded-lg text-xs font-medium transition-all duration-200"
+              style={{
+                background: "rgba(0, 255, 65, 0.1)",
+                border: "1px solid rgba(0, 255, 65, 0.3)",
+                color: "#00FF41",
+              }}
+            >
+              Drill into code
+            </button>
+          )}
+          {drillInRepo && (
+            <button
+              onClick={() => onExitDrillIn?.()}
+              className="w-full mt-3 py-2 px-4 rounded-lg text-xs font-medium transition-all duration-200"
+              style={{
+                background: "rgba(255, 255, 255, 0.05)",
+                border: "1px solid rgba(255, 255, 255, 0.1)",
+                color: "#94a3b8",
+              }}
+            >
+              Exit code view
+            </button>
           )}
         </div>
       </div>

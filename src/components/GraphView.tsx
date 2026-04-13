@@ -13,8 +13,10 @@ import { useGraphState } from "@/hooks/useGraphState";
 import { SphereConsumer } from "@/components/SphereConsumer";
 
 export function GraphView() {
-  const { nodes, links, neighborMap, generatedAt, loading, error } =
+  const { nodes, links, allNodes, neighborMap, generatedAt, loading, error } =
     useGraphData();
+  const setDrillInRepo = useGraphState((s) => s.setDrillInRepo);
+  const setDrillInNodeIds = useGraphState((s) => s.setDrillInNodeIds);
   const clearFocus = useGraphState((s) => s.clearFocus);
   const setFocusedNode = useGraphState((s) => s.setFocusedNode);
   const focusedNodeId = useGraphState((s) => s.focusedNodeId);
@@ -86,7 +88,24 @@ export function GraphView() {
       </GraphCanvas>
 
       <CommandPalette nodes={nodes} />
-      <ArticlePanel nodes={nodes} neighborMap={neighborMap} />
+      <ArticlePanel
+        nodes={nodes}
+        neighborMap={neighborMap}
+        allNodes={allNodes}
+        onDrillIn={(repoName) => {
+          setDrillInRepo(repoName);
+          const ids = new Set(
+            allNodes
+              .filter((n) => n.layer === "code" && n.repo === repoName)
+              .map((n) => n.id),
+          );
+          setDrillInNodeIds(ids);
+        }}
+        onExitDrillIn={() => {
+          setDrillInRepo(null);
+          setDrillInNodeIds(new Set());
+        }}
+      />
       <GraphMeta nodeCount={nodes.length} generatedAt={generatedAt} />
       <AdminRefresh />
     </main>
