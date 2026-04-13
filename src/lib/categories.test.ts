@@ -1,11 +1,15 @@
 import { describe, it, expect } from "vitest";
 import {
   getCategoryColor,
+  getCodeNodeColor,
   getGlowColor,
+  getNodeColor,
+  getNodeLabel,
   getNodeRadius,
   CATEGORY_COLORS,
   CATEGORY_GLOW_COLORS,
 } from "./categories";
+import type { GraphNode } from "./types";
 
 describe("getCategoryColor", () => {
   it("returns correct hex for known categories", () => {
@@ -52,5 +56,47 @@ describe("getNodeRadius", () => {
     const r = getNodeRadius(20);
     expect(r).toBeGreaterThan(0.3);
     expect(r).toBeLessThan(1.5);
+  });
+});
+
+describe("getCodeNodeColor", () => {
+  it("returns green-family color for community 0", () => {
+    const color = getCodeNodeColor(0);
+    expect(color).toMatch(/^hsl\(/);
+  });
+
+  it("different communities produce different hues", () => {
+    expect(getCodeNodeColor(0)).not.toBe(getCodeNodeColor(1));
+  });
+});
+
+describe("getNodeColor", () => {
+  it("returns category color for wiki nodes", () => {
+    const node = { layer: "wiki", category: "projects", community: undefined } as unknown as GraphNode;
+    const color = getNodeColor(node);
+    expect(color).toBe("#a78bfa");
+  });
+
+  it("returns community hue for code nodes", () => {
+    const node = { layer: "code", category: "karen", community: 3 } as unknown as GraphNode;
+    const color = getNodeColor(node);
+    expect(color).toMatch(/^hsl\(/);
+  });
+});
+
+describe("getNodeLabel", () => {
+  it("returns title for wiki nodes", () => {
+    const node = { layer: "wiki", title: "My Article", source_file: undefined } as unknown as GraphNode;
+    expect(getNodeLabel(node)).toBe("My Article");
+  });
+
+  it("returns file basename for code nodes", () => {
+    const node = { layer: "code", title: "code://karen/src/auth/service.ts", source_file: "/Users/r/Desktop/karen/src/auth/service.ts" } as unknown as GraphNode;
+    expect(getNodeLabel(node)).toBe("service.ts");
+  });
+
+  it("falls back to title if no source_file", () => {
+    const node = { layer: "code", title: "service.ts", source_file: undefined } as unknown as GraphNode;
+    expect(getNodeLabel(node)).toBe("service.ts");
   });
 });

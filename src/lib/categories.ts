@@ -1,3 +1,5 @@
+import type { GraphNode } from "./types";
+
 export const CATEGORY_COLORS: Record<string, string> = {
   projects: "#a78bfa",    // Brighter violet (was #8b5cf6)
   skills: "#06b6d4",      // Cyan
@@ -39,4 +41,21 @@ const MAX_CONNECTIONS = 40;
 export function getNodeRadius(connectionCount: number): number {
   const t = Math.min(connectionCount / MAX_CONNECTIONS, 1);
   return MIN_RADIUS + t * (MAX_RADIUS - MIN_RADIUS);
+}
+
+export function getCodeNodeColor(community?: number): string {
+  const hue = (120 + (community ?? 0) * 37) % 360;
+  return `hsl(${hue}, 100%, 50%)`;
+}
+
+export function getNodeColor(node: GraphNode): string {
+  if (node.layer === "code") return getCodeNodeColor(node.community);
+  return getCategoryColor(node.category);
+}
+
+export function getNodeLabel(node: GraphNode): string {
+  if (node.layer === "code" && node.source_file) {
+    return node.source_file.split("/").pop() ?? node.title;
+  }
+  return node.title;
 }
