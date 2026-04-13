@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { Html } from "@react-three/drei";
 import type { GraphNode } from "@/lib/types";
-import { getCategoryColor } from "@/lib/categories";
+import { getCategoryColor, getNodeLabel, getCodeNodeColor } from "@/lib/categories";
 import { useGraphState } from "@/hooks/useGraphState";
 
 interface TooltipProps {
@@ -26,7 +26,9 @@ export function Tooltip({ nodes, neighborMap }: TooltipProps) {
   const node = nodeMap.get(hoveredNodeId);
   if (!node) return null;
 
-  const color = getCategoryColor(node.category);
+  const isCodeNode = node.layer === "code";
+  const label = getNodeLabel(node);
+  const color = isCodeNode ? getCodeNodeColor(node.community) : getCategoryColor(node.category);
   const connectionCount =
     neighborMap.get(node.id)?.size ?? node.connection_count;
 
@@ -62,8 +64,36 @@ export function Tooltip({ nodes, neighborMap }: TooltipProps) {
             whiteSpace: "nowrap",
           }}
         >
-          {node.title}
+          {label}
         </p>
+
+        {isCodeNode && (
+          <>
+            {node.source_file && (
+              <p style={{
+                color: "#94a3b8",
+                fontSize: "10px",
+                fontFamily: "monospace",
+                margin: "4px 0 0",
+                wordBreak: "break-all",
+              }}>
+                {node.source_file}
+              </p>
+            )}
+            <div style={{ display: "flex", gap: "8px", marginTop: "4px" }}>
+              {node.repo && (
+                <span style={{ color: "#64748b", fontSize: "10px" }}>
+                  {node.repo}
+                </span>
+              )}
+              {node.community !== undefined && (
+                <span style={{ color: "#64748b", fontSize: "10px" }}>
+                  community {node.community}
+                </span>
+              )}
+            </div>
+          </>
+        )}
 
         {/* Category pill + connection count */}
         <div
