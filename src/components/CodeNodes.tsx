@@ -14,7 +14,7 @@ interface CodeNodesProps {
   neighborMap: Map<string, Set<string>>;
   positionsRef: React.MutableRefObject<Float32Array>;
   nodeIndexMap: React.MutableRefObject<Map<string, number>>;
-  onNodePointerDown?: (event: ThreeEvent<PointerEvent>) => void;
+  onNodePointerDown?: (event: ThreeEvent<PointerEvent>, nodeId?: string) => void;
   dragState?: React.MutableRefObject<DragState>;
   draggedIndex?: React.MutableRefObject<number | null>;
 }
@@ -99,12 +99,15 @@ export function CodeNodes({
         const globalId = localToGlobal.get(localId);
         if (globalId !== undefined) {
           e.instanceId = globalId;
-          onNodePointerDown?.(e);
+          const nodeId = instanceToNodeId.get(localId);
+          onNodePointerDown?.(e, nodeId);
         }
       }
     },
     [localToGlobal, onNodePointerDown],
   );
+
+  const boundsStaleRef = useRef(true);
 
   useFrame(({ clock }) => {
     if (!meshRef.current || codeNodes.length === 0) return;
@@ -165,6 +168,11 @@ export function CodeNodes({
 
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+
+    if (boundsStaleRef.current) {
+      mesh.computeBoundingSphere();
+      boundsStaleRef.current = false;
+    }
   });
 
   if (codeNodes.length === 0) return null;

@@ -10,6 +10,10 @@ import { useGraphState } from "@/hooks/useGraphState";
 
 const DRAG_THRESHOLD_PX = 5;
 const POSITION_CLAMP = 80;
+
+// Timestamp of last focus-via-click, used to suppress onPointerMissed race.
+// Module-level so GraphView can read it without prop drilling.
+export let lastFocusClickTime = 0;
 const SPRING_STIFFNESS = 180;
 const SPRING_DAMPING = 0.85;
 
@@ -20,7 +24,7 @@ interface UseDragParams {
 }
 
 interface UseDragReturn {
-  onPointerDown: (event: ThreeEvent<PointerEvent>) => void;
+  onPointerDown: (event: ThreeEvent<PointerEvent>, nodeId?: string) => void;
   dragState: React.MutableRefObject<DragState>;
   draggedIndex: React.MutableRefObject<number | null>;
 }
@@ -33,6 +37,7 @@ export function useDrag({
   const { camera, raycaster } = useThree();
   const dragState = useRef<DragState>("IDLE");
   const draggedIndex = useRef<number | null>(null);
+  const draggedNodeId = useRef<string | null>(null);
   const pointerStart = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const thresholdCrossed = useRef(false);
 
@@ -48,6 +53,7 @@ export function useDrag({
   const setFocusedNode = useGraphState((s) => s.setFocusedNode);
   const clearFocus = useGraphState((s) => s.clearFocus);
   const setIsDragging = useGraphState((s) => s.setIsDragging);
+
 
   const indexToNodeId = useRef<Map<number, string>>(new Map());
   useEffect(() => {
@@ -70,9 +76,8 @@ export function useDrag({
 
         thresholdCrossed.current = true;
         dragState.current = "DRAGGING";
-        const nodeId = indexToNodeId.current.get(idx);
         setIsDragging(true);
-        if (nodeId) setFocusedNode(nodeId);
+        if (draggedNodeId.current) setFocusedNode(draggedNodeId.current);
       }
 
       const positions = positionsRef.current;
@@ -106,9 +111,13 @@ export function useDrag({
     const idx = draggedIndex.current;
 
     if (!thresholdCrossed.current && idx !== null) {
-      const nodeId = indexToNodeId.current.get(idx);
-      if (nodeId) setFocusedNode(nodeId);
+      const nodeId = draggedNodeId.current;
+      if (nodeId) {
+        lastFocusClickTime = performance.now();
+        setFocusedNode(nodeId);
+      }
       draggedIndex.current = null;
+      draggedNodeId.current = null;
       dragState.current = "IDLE";
       return;
     }
@@ -161,13 +170,14 @@ export function useDrag({
   });
 
   const onPointerDown = useCallback(
-    (event: ThreeEvent<PointerEvent>) => {
+    (event: ThreeEvent<PointerEvent>, nodeId?: string) => {
       if (dragState.current !== "IDLE") return;
       const instanceId = event.instanceId;
       if (instanceId === undefined) return;
 
       event.stopPropagation();
       draggedIndex.current = instanceId;
+      draggedNodeId.current = nodeId ?? null;
       thresholdCrossed.current = false;
       pointerStart.current = { x: event.nativeEvent.clientX, y: event.nativeEvent.clientY };
 

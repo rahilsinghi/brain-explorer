@@ -14,7 +14,7 @@ interface InstancedNodesProps {
   neighborMap: Map<string, Set<string>>;
   positionsRef: React.MutableRefObject<Float32Array>;
   nodeIndexMap: React.MutableRefObject<Map<string, number>>;
-  onNodePointerDown?: (event: ThreeEvent<PointerEvent>) => void;
+  onNodePointerDown?: (event: ThreeEvent<PointerEvent>, nodeId?: string) => void;
   dragState?: React.MutableRefObject<DragState>;
   draggedIndex?: React.MutableRefObject<number | null>;
 }
@@ -88,15 +88,12 @@ export function InstancedNodes({
       if (localId !== undefined) {
         const globalId = localToGlobal.get(localId);
         if (globalId !== undefined) {
-          // Mutate instanceId to global index on the original event.
-          // Spreading ThreeEvent loses stopPropagation/nativeEvent bindings,
-          // causing clicks to bubble to OrbitControls (camera jump bug).
           e.instanceId = globalId;
-          onNodePointerDown?.(e);
+          onNodePointerDown?.(e, instanceToNodeId.get(localId));
         }
       }
     },
-    [localToGlobal, onNodePointerDown],
+    [localToGlobal, instanceToNodeId, onNodePointerDown],
   );
 
   const handlePointerOut = useCallback(() => {
@@ -105,6 +102,8 @@ export function InstancedNodes({
       document.body.style.cursor = "default";
     }, 50);
   }, [setHoveredNode]);
+
+  const boundsStalRef = useRef(true);
 
   useFrame(({ clock }) => {
     if (!meshRef.current) return;
@@ -144,6 +143,12 @@ export function InstancedNodes({
 
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+
+    // Recompute bounding sphere once after first matrix update so raycasting works.
+    if (boundsStalRef.current) {
+      mesh.computeBoundingSphere();
+      boundsStalRef.current = false;
+    }
   });
 
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef, useCallback } from "react";
 import { GraphCanvas } from "@/components/GraphCanvas";
 import { CameraController } from "@/components/CameraController";
 import { Tooltip } from "@/components/Tooltip";
@@ -11,6 +11,7 @@ import { GraphMeta } from "@/components/GraphMeta";
 import { LayerToggle } from "@/components/LayerToggle";
 import { useGraphData } from "@/hooks/useGraphData";
 import { useGraphState } from "@/hooks/useGraphState";
+import { lastFocusClickTime } from "@/hooks/useDrag";
 import { useDrillIn } from "@/hooks/useDrillIn";
 import { SphereConsumer } from "@/components/SphereConsumer";
 import { readLayerParam, readFocusParam, updateUrlParams } from "@/lib/url-params";
@@ -21,8 +22,24 @@ export function GraphView() {
   const clearFocus = useGraphState((s) => s.clearFocus);
   const setFocusedNode = useGraphState((s) => s.setFocusedNode);
   const focusedNodeId = useGraphState((s) => s.focusedNodeId);
+  const prevFocusRef = useRef<string | null>(null);
   const setActiveLayer = useGraphState((s) => s.setActiveLayer);
   const { drillIn, exitDrillIn } = useDrillIn(allNodes);
+
+  // Track previous focus to detect click-then-miss race condition.
+  // pointerup sets focus, then click fires onPointerMissed in the same tick.
+  // If focus changed between our last render and onPointerMissed, a node
+  // was just clicked — don't clear it.
+  useEffect(() => {
+    prevFocusRef.current = focusedNodeId;
+  }, [focusedNodeId]);
+
+  const handlePointerMissed = useCallback(() => {
+    // useDrag sets focus on pointerup; R3F fires onPointerMissed on click
+    // (same event loop, ~0-2ms apart). Suppress if focus was just set.
+    if (performance.now() - lastFocusClickTime < 100) return;
+    clearFocus();
+  }, [clearFocus]);
 
   // Read ?layer= on mount and set initial layer
   useEffect(() => {
@@ -53,10 +70,14 @@ export function GraphView() {
     return () => window.removeEventListener("brain:focus", handler);
   }, [setFocusedNode]);
 
-  // Deep-link: read ?focus= on load (supports URI-encoded code:// IDs)
+  // Deep-link: read ?focus= on initial load only (not on subsequent node changes)
+  const initialFocusRead = useRef(false);
   useEffect(() => {
+    if (initialFocusRead.current) return;
+    if (nodes.length === 0) return;
+    initialFocusRead.current = true;
     const focusParam = readFocusParam();
-    if (focusParam && nodes.length > 0) {
+    if (focusParam) {
       const match = nodes.find((n) => n.id === focusParam);
       if (match) setFocusedNode(match.id);
     }
@@ -98,7 +119,7 @@ export function GraphView() {
 
   return (
     <main className="h-screen w-screen relative">
-      <GraphCanvas onPointerMissed={clearFocus}>
+      <GraphCanvas onPointerMissed={handlePointerMissed}>
         <SphereConsumer nodes={nodes} links={links} neighborMap={neighborMap} />
         <CameraController nodes={nodes} />
         <Tooltip nodes={nodes} neighborMap={neighborMap} />
