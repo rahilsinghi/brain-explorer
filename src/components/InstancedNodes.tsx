@@ -88,11 +88,11 @@ export function InstancedNodes({
       if (localId !== undefined) {
         const globalId = localToGlobal.get(localId);
         if (globalId !== undefined) {
-          const syntheticEvent = {
-            ...e,
-            instanceId: globalId,
-          } as ThreeEvent<PointerEvent>;
-          onNodePointerDown?.(syntheticEvent);
+          // Mutate instanceId to global index on the original event.
+          // Spreading ThreeEvent loses stopPropagation/nativeEvent bindings,
+          // causing clicks to bubble to OrbitControls (camera jump bug).
+          e.instanceId = globalId;
+          onNodePointerDown?.(e);
         }
       }
     },

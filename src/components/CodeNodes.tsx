@@ -98,11 +98,8 @@ export function CodeNodes({
       if (localId !== undefined) {
         const globalId = localToGlobal.get(localId);
         if (globalId !== undefined) {
-          const syntheticEvent = {
-            ...e,
-            instanceId: globalId,
-          } as ThreeEvent<PointerEvent>;
-          onNodePointerDown?.(syntheticEvent);
+          e.instanceId = globalId;
+          onNodePointerDown?.(e);
         }
       }
     },
