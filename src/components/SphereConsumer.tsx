@@ -1,9 +1,11 @@
 "use client";
 
+import { useMemo } from "react";
 import type { GraphNode, GraphLink } from "@/lib/types";
 import { useSphereLayout } from "@/hooks/useSphereLayout";
 import { useDrag } from "@/hooks/useDrag";
 import { InstancedNodes } from "@/components/InstancedNodes";
+import { CodeNodes } from "@/components/CodeNodes";
 import { Edges } from "@/components/Edges";
 
 interface SphereConsumerProps {
@@ -20,6 +22,16 @@ export function SphereConsumer({ nodes, links, neighborMap }: SphereConsumerProp
     nodeIndexMap,
   });
 
+  const wikiNodes = useMemo(
+    () => nodes.filter((n) => n.layer !== "code"),
+    [nodes],
+  );
+
+  const hasCodeNodes = useMemo(
+    () => nodes.some((n) => n.layer === "code"),
+    [nodes],
+  );
+
   if (nodes.length === 0) return null;
 
   return (
@@ -31,7 +43,7 @@ export function SphereConsumer({ nodes, links, neighborMap }: SphereConsumerProp
         nodeIndexMap={nodeIndexMap}
       />
       <InstancedNodes
-        nodes={nodes}
+        nodes={wikiNodes}
         neighborMap={neighborMap}
         positionsRef={positionsRef}
         nodeIndexMap={nodeIndexMap}
@@ -39,6 +51,17 @@ export function SphereConsumer({ nodes, links, neighborMap }: SphereConsumerProp
         dragState={dragState}
         draggedIndex={draggedIndex}
       />
+      {hasCodeNodes && (
+        <CodeNodes
+          nodes={nodes}
+          neighborMap={neighborMap}
+          positionsRef={positionsRef}
+          nodeIndexMap={nodeIndexMap}
+          onNodePointerDown={onPointerDown}
+          dragState={dragState}
+          draggedIndex={draggedIndex}
+        />
+      )}
     </>
   );
 }
