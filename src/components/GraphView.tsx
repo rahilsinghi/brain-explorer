@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { GraphCanvas } from "@/components/GraphCanvas";
 import { CameraController } from "@/components/CameraController";
 import { Tooltip } from "@/components/Tooltip";
@@ -8,18 +8,31 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { ArticlePanel } from "@/components/ArticlePanel";
 import { AdminRefresh } from "@/components/AdminRefresh";
 import { GraphMeta } from "@/components/GraphMeta";
+import { LayerToggle } from "@/components/LayerToggle";
 import { useGraphData } from "@/hooks/useGraphData";
 import { useGraphState } from "@/hooks/useGraphState";
+import { useDrillIn } from "@/hooks/useDrillIn";
 import { SphereConsumer } from "@/components/SphereConsumer";
+import { readLayerParam, readFocusParam, updateUrlParams } from "@/lib/url-params";
 
 export function GraphView() {
-  const { nodes, links, allNodes, neighborMap, generatedAt, loading, error } =
+  const { nodes, links, allNodes, neighborMap, generatedAt, loading, error, hasCodeNodes } =
     useGraphData();
-  const setDrillInRepo = useGraphState((s) => s.setDrillInRepo);
-  const setDrillInNodeIds = useGraphState((s) => s.setDrillInNodeIds);
   const clearFocus = useGraphState((s) => s.clearFocus);
   const setFocusedNode = useGraphState((s) => s.setFocusedNode);
   const focusedNodeId = useGraphState((s) => s.focusedNodeId);
+  const setActiveLayer = useGraphState((s) => s.setActiveLayer);
+  const { drillIn, exitDrillIn } = useDrillIn(allNodes);
+
+  // Read ?layer= on mount and set initial layer
+  useEffect(() => {
+    const layerParam = readLayerParam();
+    if (layerParam) {
+      setActiveLayer(layerParam);
+    } else if (hasCodeNodes) {
+      setActiveLayer("combined");
+    }
+  }, [hasCodeNodes, setActiveLayer]);
 
   // Esc to clear focus
   useEffect(() => {
@@ -40,10 +53,9 @@ export function GraphView() {
     return () => window.removeEventListener("brain:focus", handler);
   }, [setFocusedNode]);
 
-  // Deep-link: read ?focus= on load
+  // Deep-link: read ?focus= on load (supports URI-encoded code:// IDs)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const focusParam = params.get("focus");
+    const focusParam = readFocusParam();
     if (focusParam && nodes.length > 0) {
       const match = nodes.find((n) => n.id === focusParam);
       if (match) setFocusedNode(match.id);
@@ -52,14 +64,19 @@ export function GraphView() {
 
   // Deep-link: update URL on focus change
   useEffect(() => {
-    const url = new URL(window.location.href);
-    if (focusedNodeId) {
-      url.searchParams.set("focus", focusedNodeId);
-    } else {
-      url.searchParams.delete("focus");
-    }
-    window.history.replaceState({}, "", url.toString());
+    updateUrlParams({
+      focus: focusedNodeId,
+    });
   }, [focusedNodeId]);
+
+  const wikiCount = useMemo(
+    () => nodes.filter((n) => n.layer !== "code").length,
+    [nodes],
+  );
+  const codeCount = useMemo(
+    () => nodes.filter((n) => n.layer === "code").length,
+    [nodes],
+  );
 
   if (loading) {
     return (
@@ -87,26 +104,21 @@ export function GraphView() {
         <Tooltip nodes={nodes} neighborMap={neighborMap} />
       </GraphCanvas>
 
+      {hasCodeNodes && <LayerToggle />}
       <CommandPalette nodes={nodes} />
       <ArticlePanel
         nodes={nodes}
         neighborMap={neighborMap}
         allNodes={allNodes}
-        onDrillIn={(repoName) => {
-          setDrillInRepo(repoName);
-          const ids = new Set(
-            allNodes
-              .filter((n) => n.layer === "code" && n.repo === repoName)
-              .map((n) => n.id),
-          );
-          setDrillInNodeIds(ids);
-        }}
-        onExitDrillIn={() => {
-          setDrillInRepo(null);
-          setDrillInNodeIds(new Set());
-        }}
+        onDrillIn={drillIn}
+        onExitDrillIn={exitDrillIn}
       />
-      <GraphMeta nodeCount={nodes.length} generatedAt={generatedAt} />
+      <GraphMeta
+        nodeCount={nodes.length}
+        generatedAt={generatedAt}
+        wikiCount={wikiCount}
+        codeCount={codeCount}
+      />
       <AdminRefresh />
     </main>
   );
